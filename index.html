@@ -345,6 +345,47 @@ h2,.piece h3{letter-spacing:-.01em}
 .orb{background:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 8px var(--accent-soft)}
 .vlog div{background:var(--accent-soft)}
 @media (max-width:900px){.atest-btn{margin-left:auto}}
+/* ===== Plain site layer: square corners, flat sections, ordinary website chrome ===== */
+:root{--r:0px;--shadow:none;--f-display:var(--f-body)}
+.atest,.atest-step,.btn,.field select,.field input,.card,.paper,.chatcol,.msg,.msg code,.audiocard,.chip,.composer textarea,.clip,.fact,.thumbs img,.seg,.seg button,.bar,.bar i,.fb>div,.mstrip button,.legend i,.nchips span,.lvlpill,.countover,.srlive,.meter,.meter i,.hist span,.lesson,.kq,.kbwrap,.vform input,.vlog div,.notice,.avatar,.chathead,.atest-btn{border-radius:0}
+.card,.chatcol,.lesson,.paper{box-shadow:none}
+h1,h2,h3{font-weight:700;letter-spacing:0}
+/* header and nav: plain bar with underlined current page */
+.top{border-bottom:1px solid var(--line)}
+.top-in{padding-block:0}
+.brand{font-size:20px;padding-block:12px}
+.nav{align-self:stretch;gap:0}
+.nav button{border-radius:0;padding:0 16px;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
+.nav button[aria-current="page"]{background:none;color:var(--accent);border-bottom-color:var(--accent)}
+.nav button:hover{color:var(--accent);background:none}
+.top .atest-btn{align-self:center}
+/* labels in normal case */
+.eyebrow{text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted)}
+.field{text-transform:none;letter-spacing:0;font-size:13px}
+.fb h4{text-transform:none;letter-spacing:0;font-size:14px}
+/* buttons, chips, tabs */
+.btn{transition:background .15s,border-color .15s,color .15s}
+.btn:hover{background:var(--sunk)}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 85%,var(--ink))}
+.btn:active{transform:none}
+.chip{background:var(--surface);border-color:var(--line);color:var(--ink);font-weight:400}
+.chip:hover{background:var(--sunk);border-color:var(--accent);color:var(--accent)}
+.seg{padding:0;gap:0;border:1px solid var(--line);background:var(--surface)}
+.seg button{padding:7px 14px}
+.lvlpill{font-weight:700}
+/* chat as a plain list */
+.chathead{border-bottom:1px solid var(--line)}
+.msg.me,.msg.bot{border-bottom-right-radius:0;border-bottom-left-radius:0}
+.msg.bot{background:var(--sunk);border-left:3px solid var(--nova)}
+/* lessons */
+.lesson{border-top:1px solid var(--line)}
+.lesson[open]{border-top:1px solid var(--accent)}
+.lesson:hover{background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}
+.lesson[open]:hover{background:var(--surface)}
+/* voice orb: plain round mic button */
+.orb{width:120px;height:120px;box-shadow:none;border:4px solid var(--accent-soft)}
+.vstage{border:1px solid var(--line)}
+@media (max-width:900px){.nav{align-self:auto}.nav button{border-bottom:0;border-top:3px solid transparent;padding:6px 8px}.nav button[aria-current="page"]{border-top-color:var(--accent)}}
 </style>
 
 <header class="top"><div class="top-in wrap">
