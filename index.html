@@ -473,7 +473,7 @@ h2,.piece h3{letter-spacing:-.01em}
         <label class="field" style="flex-direction:row;align-items:center;gap:6px">Sound<select id="srMetroType"><option value="click">Classic click</option><option value="wood">Wood block</option><option value="beep">Soft beep</option><option value="tick">Quiet tick</option><option value="cowbell">Cowbell</option><option value="drum">Drum (kick + hi-hat)</option><option value="clap">Clap</option></select></label>
         <label class="field" style="flex-direction:row;align-items:center;gap:6px">Volume<input id="srMetroVol" type="range" min="0" max="100" value="80" style="width:90px"></label>
         <label class="chk"><input type="checkbox" id="srHints"> Show solfège hints</label>
-        <label class="chk"><input type="checkbox" id="srStudy"> 30-second study timer</label>
+        <label class="chk"><input type="checkbox" id="srStudy" autocomplete="off"> 30-second study timer</label>
       </div>
       <div class="status" id="srStatus"></div>
       <div id="srResult"></div>
@@ -1347,10 +1347,12 @@ document.addEventListener('click',e=>{const d=e.target.closest('[data-kqdo],[dat
   if(d.dataset.kqdo!=null){q.doAns=+d.dataset.kqdo;q.doOK=q.doAns===SR.key.f}else{q.sylAns=d.dataset.kqsyl;q.sylOK=q.sylAns===first.nt.syl}
   $('#srKeyTip').innerHTML=keyQHTML();if(SR.mode==='test'&&q.doAns!=null&&q.sylAns!=null&&/answer “Where is do/.test($('#srStatus').textContent))$('#srStatus').textContent='Ready. Press Start when you are.'});
 function setMode(m){SRMODE=m;store.set('srMode',m);$('#srModePractice').setAttribute('aria-pressed',m==='practice');$('#srModeTest').setAttribute('aria-pressed',m==='test');
-  $('#srHints').disabled=m==='test';$('#srStudy').disabled=m==='test';if(m==='test'){$('#srHints').checked=false;$('#srStudy').checked=true}srNew()}
+  $('#srHints').disabled=m==='test';if(m==='test')$('#srHints').checked=false;srNew()}
 function srNew(){Player.stop();clearInterval(srStudyTimer);const lvl=+$('#srLevel').value;SR=genExercise(lvl,$('#srVoice').value,$('#srKey').value,$('#srMeas').value);SR.attempted=false;SR.keyQ={};SR.mode=SRMODE;$('#srResult').innerHTML='';$('#srStatus').textContent=LEVELS[lvl].desc;srRender();
   if(SRMODE==='test'&&keyHidden())$('#srStatus').textContent='Test: find the key and your starting syllable, then press Start.';
-  if($('#srStudy').checked||SRMODE==='test'){let s=30;$('#srStatus').innerHTML='Study the music: <span class="countdown">'+s+'</span> seconds. It starts by itself.';srStudyTimer=setInterval(()=>{s--;if(s<=0){clearInterval(srStudyTimer);srGo(true);return}$('#srStatus').innerHTML='Study the music: <span class="countdown">'+s+'</span> seconds. It starts by itself.'},1000)}}
+  if($('#srStudy').checked)srStudyStart()}
+// 30-second study countdown, only when the box is ticked; then it starts singing by itself
+function srStudyStart(){clearInterval(srStudyTimer);let s=30;$('#srStatus').innerHTML='Study the music: <span class="countdown">'+s+'</span> seconds. It starts by itself.';srStudyTimer=setInterval(()=>{s--;if(s<=0){clearInterval(srStudyTimer);srGo(true);return}$('#srStatus').innerHTML='Study the music: <span class="countdown">'+s+'</span> seconds. It starts by itself.'},1000)}
 function srEvents(){const ev=[];SR.measures.forEach((m,mi)=>m.list.forEach(n=>{if(n.rest)return;ev.push({midi:n.midi,start:n.absStart,dur:n.beats,mi,n:m.n,nt:n,vel:0.32})}));return ev}
 function srCue(){
   const spb=60/SR.bpm,t=tonicOf(SR.key.f,SR.key.mode),first=srEvents()[0];
@@ -1467,6 +1469,7 @@ $('#srVoice').value=store.get('srVoice','Soprano');$('#srVoice').onchange=()=>{s
 ['#srKey','#srMeas'].forEach(s=>$(s).onchange=srNew);
 $('#srBpm').oninput=()=>{$('#srBpmOut').textContent='♩ = '+$('#srBpm').value;if(SR){SR.bpm=+$('#srBpm').value;srRender(!!SR.grade)}};
 $('#srHints').onchange=()=>SR&&srRender(!!SR.grade);
+$('#srStudy').onchange=()=>{clearInterval(srStudyTimer);if(!SR||SR.grade||Player.playing)return;if($('#srStudy').checked)srStudyStart();else $('#srStatus').textContent='Timer off. Press Start when you’re ready.'};
 $('#srNew').onclick=srNew;
 $('#srModePractice').onclick=()=>setMode('practice');$('#srModeTest').onclick=()=>setMode('test');
 $('#srHints').addEventListener('change',()=>{if(SR&&SR.lvl>=2&&!SR.grade)srRender()});
@@ -1708,7 +1711,7 @@ You can also attach a recording or video of yourself singing, and I'll grade you
 I've loaded an example piece, **Evening Hymn**, so you can try it right now.`));
 syncBpm();srHist();keyQuiz();
 const h0=(location.hash||'').slice(1);go(['coach','sight','piano','voca'].includes(h0)?h0:'coach');
-SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srStudy').disabled=true;$('#srHints').checked=false;$('#srStudy').checked=true;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
+SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srHints').checked=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
 srNew();
 renderCoachStaff();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{renderCoachStaff();if(SR)srRender(!!SR.grade)});
