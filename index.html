@@ -40,6 +40,7 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
 *{box-sizing:border-box}
+.srgrid[hidden]{display:none}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 h1,h2,h3{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0}
@@ -221,7 +222,15 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .countdown{font-family:var(--f-display);font-weight:800;font-size:28px;font-variant-numeric:tabular-nums}
 .lessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .lesson{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0}
-.lesson .lhead{padding:14px 16px;display:flex;gap:12px;align-items:baseline}
+.lesson .lhead{padding:14px 16px;display:flex;gap:12px;align-items:baseline;list-style:none;cursor:pointer}
+.lesson .lhead::-webkit-details-marker{display:none}
+.lesson .lhead::after{content:"";margin-left:auto;align-self:center;flex:none;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg)}
+.lesson[open] .lhead::after{transform:rotate(-135deg)}
+.lesson[open]{grid-column:1/-1;border-color:var(--accent)}
+.lesson[open] .lbody{max-width:72ch}
+.lesson:not([open]):hover{border-color:var(--accent)}
+.lesson[open] .lbody{cursor:pointer}
+.lessons-tip{margin:0 0 12px;font-size:15px;color:var(--muted)}
 .lesson .ln{font-family:var(--f-display);font-weight:800;color:var(--nova);font-size:18px;font-variant-numeric:tabular-nums}
 .lesson h3{font-size:17px}
 .lesson .lsub{font-size:13px;color:var(--muted)}
@@ -504,6 +513,7 @@ h2,.piece h3{letter-spacing:-.01em}
   </div>
 
   <div id="srLessons" hidden>
+    <p class="lessons-tip">Click a lesson card to open it and read the lesson. Click it again to close it.</p>
     <div class="lessons" id="lessonList"></div>
   </div>
 </section>
@@ -1478,7 +1488,9 @@ function srMetroPreview(){metroSync();const [num,den]=SR?timeParts(SR.time):[4,4
 $('#srHear').onclick=()=>{if(!SR)return;if(SR.mode==='test'&&!SR.grade){$('#srStatus').textContent='In a test, you can hear it after you finish.';return}if(!SR.attempted)$('#srStatus').textContent='Tip: try singing it first, then listen to check yourself.';Player.play({events:srEvents(),bpm:SR.bpm,onTick:b=>highlightRefs(srRefs,b),onEnd:()=>highlightRefs(srRefs,-1)})};
 $('#srFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)srGrade(f)};
 $('#stPractice').onclick=()=>{$('#srPractice').hidden=false;$('#srLessons').hidden=true;$('#stPractice').setAttribute('aria-pressed','true');$('#stLessons').setAttribute('aria-pressed','false')};
-$('#srKeyLesson').onclick=()=>{$('#stLessons').click();const d=$('#kqStaff')&&$('#kqStaff').closest('.lesson');if(d){d.scrollIntoView({behavior:'smooth',block:'start'});keyQuiz()}};
+$('#stLessons').addEventListener('click',()=>$$('#lessonList details[open]').forEach(d=>d.open=false));
+$('#lessonList').addEventListener('click',e=>{const b=e.target.closest('.lbody');if(b&&!e.target.closest('button,a,input,select,textarea,svg,canvas')&&!getSelection().toString())b.closest('details').open=false});
+$('#srKeyLesson').onclick=()=>{$('#stLessons').click();const d=$('#kqStaff')&&$('#kqStaff').closest('.lesson');if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'});keyQuiz()}};
 $('#stLessons').onclick=()=>{$('#srPractice').hidden=true;$('#srLessons').hidden=false;$('#stPractice').setAttribute('aria-pressed','false');$('#stLessons').setAttribute('aria-pressed','true')};
 
 /* lessons */
@@ -1513,7 +1525,7 @@ const LESSONS=[
  ['While you sing','Keep going, no matter what',`<ul><li><b>Never stop.</b> If you miss a note, find the next one and keep the beat.</li><li>Keep a steady pulse. Rhythm matters as much as pitch.</li><li>Think the syllable before you sing it.</li><li>Breathe at the ends of phrases, not in the middle.</li><li>Look one or two notes ahead, not at the note you're singing.</li></ul>`,0],
  ['Practice plan','Ten minutes a day beats an hour once a week',`<ul><li>Warm up with a scale on solfège.</li><li>Do 3 exercises at your level. Use the 30-second timer.</li><li>Don't listen first. Sing, then check with “Hear it”.</li><li>When you score 85+ three times in a row, move up a level.</li><li>Once a week, try one exercise from the next level up.</li></ul>`,0]
 ];
-$('#lessonList').innerHTML=LESSONS.map((l,i)=>'<article class="lesson"><div class="lhead"><span class="ln">'+String(i+1).padStart(2,'0')+'</span><div><h3>'+l[0]+'</h3><div class="lsub">'+l[1]+'</div></div></div><div class="lbody">'+l[2]+'<div class="row" style="margin-top:10px"><button class="btn primary" data-practice="'+l[3]+'">Practice at '+LEVELS[l[3]].name+'</button>'+(i<9?'<button class="btn ghost" data-ask="'+esc(l[0])+'">Ask the coach</button>':'')+'</div></div></article>').join('');
+$('#lessonList').innerHTML=LESSONS.map((l,i)=>'<details class="lesson"><summary class="lhead"><span class="ln">'+String(i+1).padStart(2,'0')+'</span><div><h3>'+l[0]+'</h3><div class="lsub">'+l[1]+'</div></div></summary><div class="lbody">'+l[2]+'<div class="row" style="margin-top:10px"><button class="btn primary" data-practice="'+l[3]+'">Practice at '+LEVELS[l[3]].name+'</button>'+(i<9?'<button class="btn ghost" data-ask="'+esc(l[0])+'">Ask the coach</button>':'')+'</div></div></details>').join('');
 const KQ={f:null,right:0,tries:0,answered:false};
 function keyQuiz(){
   const host=$('#kqStaff');if(!host)return;KQ.answered=false;
