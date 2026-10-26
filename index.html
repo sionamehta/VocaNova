@@ -175,7 +175,7 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 .mhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .mhead .btn{padding:5px 12px;font-size:13px}
-.listen{display:flex;flex-direction:column;gap:10px;border-color:var(--accent)}
+.listen{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .listen .row{gap:14px;align-items:center}
 .listen input[type=range]{width:100px}
 .nchips{display:flex;gap:4px;flex-wrap:wrap}
@@ -1012,7 +1012,7 @@ function feedbackLists(r,ctx={}){
   if(!fix.length)fix.push('Nothing major. Try the next level or a faster tempo.');
   return {well,fix};
 }
-function reportHTML(r,title){
+function reportHTML(r,title,opt={}){
   const col=v=>v>=85?'var(--good)':v>=65?'var(--warn)':'var(--bad)';
   const bar=(l,v)=>v==null?'':'<span>'+l+'</span><div class="bar"><i style="width:'+v+'%;background:'+col(v)+'"></i></div><b>'+v+'</b>';
   const fb=feedbackLists(r);
@@ -1022,7 +1022,7 @@ function reportHTML(r,title){
    '<div class="scorehead"><div class="ring" style="--v:'+r.overall+';--ringc:'+col(r.overall)+'"><div><span>'+r.overall+'<small>/ 100</small></span></div></div>'+
    '<div class="bars">'+bar('Pitch',r.pitch)+bar('Right notes',r.notes)+bar('Rhythm',r.rhythm)+bar('Stayed in key',r.inTune)+bar('Dynamics',r.dynamics)+'</div></div>'+
    '<div class="fb"><div class="well"><h4>What went well</h4><ul>'+fb.well.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div><div class="fix"><h4>What to work on</h4><ul>'+fb.fix.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div></div>'+
-   (r.wave?'<div><div class="eyebrow" style="margin-bottom:4px">Your recording · '+fmtTime(r.recDur||0)+'</div><svg class="wave" viewBox="0 0 180 40" preserveAspectRatio="none"><path d="'+r.wave.map((v,i)=>{const h=Math.max(0.4,Math.min(1,v)*19);return 'M'+(i+0.5)+' '+(20-h).toFixed(1)+'V'+(20+h).toFixed(1)}).join('')+'"/></svg>'+(r.peakDb<-26?'<div class="warnline">Your recording is very quiet. Hold the phone closer or sing out more so the grade is accurate.</div>':'')+'</div>':'')+
+   (r.wave?'<div><div class="mhead"><div class="eyebrow">Your recording · '+fmtTime(r.recDur||0)+'</div>'+(opt.recBtn||'')+'</div><svg class="wave" viewBox="0 0 180 40" preserveAspectRatio="none"><path d="'+r.wave.map((v,i)=>{const h=Math.max(0.4,Math.min(1,v)*19);return 'M'+(i+0.5)+' '+(20-h).toFixed(1)+'V'+(20+h).toFixed(1)}).join('')+'"/></svg>'+(r.peakDb<-26?'<div class="warnline">Your recording is very quiet. Hold the phone closer or sing out more so the grade is accurate.</div>':'')+(opt.recBody||'')+'</div>':'')+
    '<div><div class="mhead"><div class="eyebrow">Measure by measure · tap one to hear it</div><button class="btn" data-mplay="all">▶ Play all measures</button></div><div class="mstrip">'+strip+'</div></div>'+
    '<div class="legend"><span><i style="background:var(--good)"></i>on pitch</span><span><i style="background:var(--warn)"></i>a little off</span><span><i style="background:var(--bad)"></i>needs work</span><span>You sang at about ♩ = '+r.sungBpm+'</span></div></div>';
 }
@@ -1448,7 +1448,7 @@ async function srGrade(fileOrBlob,take={}){
     const first=srEvents()[0];
     const keyBlock=asked?'<div class="card" style="margin-top:10px"><div class="eyebrow">Finding the key</div><ul style="margin:6px 0 0;padding-left:1.2em;font-size:14px"><li>Where is do: '+(q.doAns==null?'<b style="color:var(--bad)">not answered</b>':q.doOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+prettyAcc(MAJ[q.doAns+7])+'</b>')+'</li><li>Starting syllable: '+(q.sylAns==null?'<b style="color:var(--bad)">not answered</b>':q.sylOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+q.sylAns+'</b>')+'</li></ul><p style="margin:6px 0 0;font-size:14px">'+keyExplain(SR.key.f,SR.key.mode)+' You start on <span class="syl">'+first.nt.syl+'</span>.'+(q.doOK&&q.sylOK?'':' Review the <b>Reading key signatures</b> lesson.')+'</p></div>':'';
     const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--nova)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
-    $('#srResult').innerHTML=head+srListenHTML()+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode))+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
+    $('#srResult').innerHTML=head+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode),srListenParts())+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
     S.lastSR={mode:SR.mode,level:LEVELS[SR.lvl].name,key:keyName(SR.key.f,SR.key.mode),time:SR.time,voice:SR.voice,final_score:final,key_question:asked?{found_do:!!q.doOK,starting_syllable:!!q.sylOK}:'not asked',...gradeSummary(r,'sight-reading exercise')};
     if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist()}
     srListenWire();
@@ -1471,16 +1471,15 @@ function srNoteChip(t,i){const x=t.x,n=pretty(x.e.nt);let mark,word;
   if(x.status==='missed'){mark='–';word='missed'}else if(x.status==='good'){mark='✓';word='on pitch'}
   else{mark=x.cents<0?'↓':'↑';word=(x.cents<0?'flat ':'sharp ')+Math.abs(x.cents)+'¢'}
   return '<span class="'+x.status+'" data-ni="'+i+'" title="'+esc(n+': '+word+(t.late?', '+t.late:''))+'"><b>'+mark+'</b>'+esc(n)+(t.late?'<small>'+t.late+'</small>':'')+'</span>'}
-function srListenHTML(){const t=SR.take;if(!t||!t.buf)return '';
+function srListenParts(){const t=SR.take;if(!t||!t.buf)return {};
   const flat=t.notes.filter(n=>n.x.status!=='good'&&n.x.status!=='missed'&&n.x.cents<0).length,sharp=t.notes.filter(n=>n.x.status!=='good'&&n.x.status!=='missed'&&n.x.cents>0).length,off=t.notes.filter(n=>n.late).length;
-  return '<div class="card listen" style="margin-bottom:10px"><div class="eyebrow">Listen back · you + the correct notes</div>'+
-   '<div class="row"><button class="btn primary" id="srLbPlay">▶ Play my singing with the notes</button><button class="btn ghost" id="srLbStop">Stop</button></div>'+
-   '<div class="row"><label class="field" style="flex-direction:row;align-items:center;gap:6px">My voice<input type="range" id="srLbVoice" min="0" max="150" value="100"></label>'+
+  return {recBtn:'<div class="row" style="gap:8px"><button class="btn primary" id="srLbPlay">▶ Play me + the correct notes</button><button class="btn ghost" id="srLbStop">Stop</button></div>',
+   recBody:'<div class="listen"><div class="row"><label class="field" style="flex-direction:row;align-items:center;gap:6px">My voice<input type="range" id="srLbVoice" min="0" max="150" value="100"></label>'+
    '<label class="field" style="flex-direction:row;align-items:center;gap:6px">Correct notes<input type="range" id="srLbNotes" min="0" max="150" value="70"></label>'+
    '<label class="chk"><input type="checkbox" id="srLbClick"> Beat clicks</label></div>'+
    '<div class="nowline" id="srLbNow">Press play. The notes on the staff light up as you go.</div>'+
    '<div class="nchips" id="srLbChips">'+t.notes.map(srNoteChip).join('')+'</div>'+
-   '<div class="legend"><span><b style="color:var(--good)">✓</b> on pitch</span><span><b style="color:var(--warn)">↓</b> flat</span><span><b style="color:var(--warn)">↑</b> sharp</span><span><small>early / late</small> off the beat</span><span>'+flat+' flat · '+sharp+' sharp · '+off+' off the beat</span></div></div>'}
+   '<div class="legend"><span><b style="color:var(--good)">✓</b> on pitch</span><span><b style="color:var(--warn)">↓</b> flat</span><span><b style="color:var(--warn)">↑</b> sharp</span><span><small>early / late</small> off the beat</span><span>'+flat+' flat · '+sharp+' sharp · '+off+' off the beat</span></div></div>'}}
 function srListenWire(){if(!$('#srLbPlay'))return;$('#srLbPlay').onclick=srListen;$('#srLbStop').onclick=()=>Player.stop()}
 function srListen(){const t=SR&&SR.take;if(!t||!t.buf)return;
   const spb=60/SR.bpm,sh=t.lead/spb;const ev=srEvents().map(e=>({...e,start:e.start+sh,vel:0.3}));
