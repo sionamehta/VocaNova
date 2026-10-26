@@ -4,7 +4,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Kalam:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Kalam:wght@400;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
@@ -249,19 +249,21 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .lastnote .big{font-family:var(--f-display);font-weight:800;font-size:44px;line-height:1;min-width:2.2ch}
 .lastnote .hz{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .lastnote .syl{color:var(--accent)}
-.kbwrap{overflow-x:auto;overflow-y:hidden;border-radius:12px;background:var(--sunk);padding:10px 10px 12px;scrollbar-width:thin}
-.kb{position:relative;display:flex;height:220px;user-select:none;-webkit-user-select:none;touch-action:none;width:max-content}
+.kbwrap{overflow:hidden;border-radius:12px;background:var(--sunk);padding:10px 10px 12px;scrollbar-width:thin}
+.kb{position:relative;display:flex;height:220px;user-select:none;-webkit-user-select:none;touch-action:none;width:100%}
 .kb.small{height:110px}
-.wk{width:52px;flex:none;height:100%;background:var(--key-white);border:1px solid var(--key-white-edge);border-radius:0 0 8px 8px;margin-right:-1px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:8px;font-size:12px;color:#40465a;cursor:pointer}
-.kb.small .wk{width:30px;font-size:10px;padding-bottom:4px}
-.bk{position:absolute;top:0;width:34px;height:62%;background:var(--key-black);border-radius:0 0 6px 6px;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-size:10px;color:#c8cce0;cursor:pointer}
-.kb.small .bk{width:20px;font-size:0}
+.wk{flex:1 1 0;min-width:0;height:100%;background:var(--key-white);border:1px solid var(--key-white-edge);border-radius:0 0 8px 8px;margin-right:-1px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:8px;font-size:12px;color:#40465a;cursor:pointer}
+.kb.small .wk{font-size:10px;padding-bottom:4px}
+.bk{position:absolute;top:0;height:62%;background:var(--key-black);border-radius:0 0 6px 6px;z-index:2;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-size:10px;color:#c8cce0;cursor:pointer}
+.kb.small .bk{font-size:0}
 .wk.on{background:var(--key-hit-soft)}
 .bk.on{background:var(--key-hit)}
 .wk .kl,.bk .kl{pointer-events:none;text-align:center;line-height:1.15}
 .wk .kl .s,.bk .kl .s{font-family:var(--f-hand);font-weight:700;font-size:13px;display:block;color:var(--p-accent)}
 .bk .kl .s{color:#9ed2d7}
 .wk.c{box-shadow:inset 0 -3px 0 var(--nova)}
+.kbnav[hidden]{display:none}
+.kbnav [aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .kbnav{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px}
 
@@ -298,7 +300,7 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
   .srgrid,.voca{grid-template-columns:minmax(0,1fr)}
   .brand small{display:none}
 }
-@media (max-width:520px){ .wk{width:46px} .msg{max-width:94%} .lastnote .big{font-size:36px} }
+@media (max-width:520px){ .kb{height:180px} .msg{max-width:94%} .lastnote .big{font-size:36px} }
 
 /* ===== Calm color layer: flat teal, light blue and white ===== */
 .top{border-bottom:1px solid var(--line)}
@@ -386,6 +388,67 @@ h1,h2,h3{font-weight:700;letter-spacing:0}
 .orb{width:120px;height:120px;box-shadow:none;border:4px solid var(--accent-soft)}
 .vstage{border:1px solid var(--line)}
 @media (max-width:900px){.nav{align-self:auto}.nav button{border-bottom:0;border-top:3px solid transparent;padding:6px 8px}.nav button[aria-current="page"]{border-top-color:var(--accent)}}
+/* ===== Minimal layer: open sections instead of boxes, more space, quiet type ===== */
+:root{--f-display:"IBM Plex Sans",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;--bg:#ffffff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:var(--surface)}}
+:root[data-theme="dark"]{--bg:var(--surface)}
+body{background:var(--bg)}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:-.01em}
+main{padding-block:32px 56px}
+/* header: just a name and links */
+.top,body::before{background:var(--bg)}
+.brand small{font-family:var(--f-mono);font-size:11px}
+.nav button svg{display:none}
+.nav button{font-weight:500;padding:0 14px}
+@media (max-width:900px){.nav button svg{display:block}}
+/* section labels in small mono */
+.eyebrow{font-family:var(--f-mono);font-weight:400;font-size:12px;color:var(--muted);margin-bottom:6px}
+.field{font-weight:500}
+/* sections: no boxes, a hairline on top and room to breathe */
+.card{background:transparent;border:0;border-top:1px solid var(--line);padding:20px 0 4px}
+.pgrid{gap:12px 40px;margin-top:32px}
+.desk,.srmain,.srside{gap:24px}
+.srgrid,.coach,.voca{gap:40px}
+.paper{border-color:var(--line);background:var(--surface)}
+.srlive{background:transparent;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0}
+.vstage{border:0;background:transparent}
+.kq{background:transparent;border-left:2px solid var(--nova);padding:4px 0 4px 14px}
+/* small facts as plain text */
+.facts{gap:4px 16px}
+.fact,.lvlpill{background:none;padding:0;font-size:13px;color:var(--muted)}
+.fact b{color:var(--ink)}
+.lvlpill{color:var(--accent);font-family:var(--f-mono);font-weight:500}
+/* suggestion chips as quiet links */
+.chips{gap:4px 18px;flex-wrap:wrap}
+.chip{border:0;background:none;padding:2px 0;color:var(--accent);font-size:13px;text-decoration:underline;text-decoration-color:var(--nova);text-underline-offset:3px}
+.chip:hover{background:none;color:var(--ink);text-decoration-color:var(--accent)}
+/* chat */
+.chatcol{border-color:var(--line)}
+.chathead{background:transparent}
+.msg.bot{background:var(--sunk)}
+/* keyboard sits on the page */
+.kbwrap{background:none;border:0;padding:0}
+/* lessons: light outlines only */
+.lesson,.lesson:hover{background:transparent}
+.lesson{border-color:var(--line)}
+.lesson .ln{font-family:var(--f-mono);font-weight:500;font-size:14px}
+/* ===== Today strip: daily goal, streak, next step ===== */
+.today{display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px;padding:0 0 18px;margin-bottom:24px;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.today b{color:var(--ink);font-family:var(--f-mono);font-weight:500}
+.today .goal{display:flex;align-items:center;gap:10px}
+.today .pips{display:flex;gap:3px}
+.today .pips i{width:18px;height:6px;background:var(--sunk);border:1px solid var(--line);transition:background .3s}
+.today .pips i.on{background:var(--accent);border-color:var(--accent)}
+.today .next{margin-left:auto}
+.today.done .goal b{color:var(--good)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 16px;font-size:14px;z-index:20;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:900px){.toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}.today{gap:6px 18px}.today .next{margin-left:0;width:100%}}
+@media (min-width:901px){.coach{height:calc(100vh - 230px)}}
+/* views ease in when you switch tabs */
+.view:not([hidden]){animation:viewin .18s ease-out}
+@keyframes viewin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.view:not([hidden]){animation:none}.toast,.today .pips i{transition:none}}
 </style>
 
 <header class="top"><div class="top-in wrap">
@@ -427,6 +490,7 @@ h1,h2,h3{font-weight:700;letter-spacing:0}
 </dialog>
 
 <main class="wrap">
+<div class="today" id="today" aria-live="polite"></div>
 
 <!-- ============ COACH ============ -->
 <section class="view" id="v-coach">
@@ -1463,7 +1527,8 @@ async function srGrade(fileOrBlob,take={}){
     const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--accent)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
     $('#srResult').innerHTML=head+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode),srListenParts())+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
     S.lastSR={mode:SR.mode,level:LEVELS[SR.lvl].name,key:keyName(SR.key.f,SR.key.mode),time:SR.time,voice:SR.voice,final_score:final,key_question:asked?{found_do:!!q.doOK,starting_syllable:!!q.sylOK}:'not asked',...gradeSummary(r,'sight-reading exercise')};
-    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist()}
+    logPractice();
+    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist();renderToday()}
     srListenWire();
     $('#srAgain').onclick=()=>{Player.stop();SR.grade=null;SR.take=null;SR.keyQ={};SR.attempted=false;srRender();$('#srResult').innerHTML='';if(SRMODE==='test')srNew()};$('#srNext').onclick=srNew;
     if($('#srAsk'))$('#srAsk').onclick=()=>{go('coach');setCV('chat');coachSend('I just sight-read a '+LEVELS[SR.lvl].name+' exercise in '+keyName(SR.key.f,SR.key.mode)+' and scored '+r.overall+'/100. Look at my result and give me 3 specific tips and one drill to improve my sight-reading.')};
@@ -1507,7 +1572,7 @@ function srPlayAll(){if(!SR)return;Player.play({events:srEvents(),bpm:SR.bpm,onT
 function srPlayMeasure(mi){if(!SR)return;const m=SR.measures[mi];const ev=srEvents().filter(e=>e.mi===mi).map(e=>({...e,start:e.start-m.start}));Player.play({events:ev,bpm:SR.bpm*0.85})}
 function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').innerHTML=h.length?h.slice(0,12).map(x=>'<span>L'+(x.lvl+1)+' · '+x.s+'</span>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
   const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl).slice(0,5);
-  $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.'}
+  $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.';if(typeof renderToday==='function'&&$('#today'))try{renderToday()}catch(e){}}
 $('#srLevel').innerHTML=LEVELS.map((l,i)=>'<option value="'+i+'">'+l.name+'</option>').join('');
 $('#srLevel').value=store.get('srLevel',0);
 $('#srKey').innerHTML='<option value="auto">Random for level</option>'+[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6].map(f=>'<option value="'+f+':major">'+keyName(f,'major')+'</option>').join('')+[0,1,-1,2,-2,3,-3,4,-4].map(f=>'<option value="'+f+':minor">'+keyName(f,'minor')+'</option>').join('');
@@ -1593,10 +1658,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-play]');if
 /* ---------------- PIANO ---------------- */
 const KB={};
 function buildKeyboard(el,lo,hi,{onDown,labels}={}){
-  el.innerHTML='';const map={};const W=el.classList.contains('small')?30:(matchMedia('(max-width:520px)').matches?46:52);let wi=0;
+  el.innerHTML='';const map={};let wi=0;
   const idx={};
   for(let m=lo;m<=hi;m++){const pc=m%12;if([1,3,6,8,10].includes(pc))continue;const k=document.createElement('div');k.className='wk'+(pc===0?' c':'');k.dataset.midi=m;el.appendChild(k);map[m]=k;idx[m]=wi++}
-  for(let m=lo;m<=hi;m++){const pc=m%12;if(![1,3,6,8,10].includes(pc))continue;if(idx[m-1]==null)continue;const k=document.createElement('div');k.className='bk';k.dataset.midi=m;const bw=el.classList.contains('small')?20:34;k.style.left=((idx[m-1]+1)*(W-1)-bw/2)+'px';el.appendChild(k);map[m]=k}
+  for(let m=lo;m<=hi;m++){const pc=m%12;if(![1,3,6,8,10].includes(pc))continue;if(idx[m-1]==null)continue;const k=document.createElement('div');k.className='bk';k.dataset.midi=m;const bw=64/wi;k.style.width=bw+'%';k.style.left=((idx[m-1]+1)*100/wi-bw/2)+'%';el.appendChild(k);map[m]=k}
   const act=new Map();
   el.onpointerdown=e=>{const k=e.target.closest('[data-midi]');if(!k)return;e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch(_){}const m=+k.dataset.midi;k.classList.add('on');const off=liveNote(m);act.set(e.pointerId,{k,off,m});onDown&&onDown(m)};
   const up=e=>{const a=act.get(e.pointerId);if(!a)return;a.k.classList.remove('on');if($('#pnSustain').checked){setTimeout(a.off,1800)}else a.off();act.delete(e.pointerId)};
@@ -1611,12 +1676,18 @@ function labelKeys(map,mode,keyF){const flat=keyF<0;for(const m in map){const k=
   k.innerHTML=h?'<span class="kl">'+h+'</span>':''}}
 function flashKeys(list,ms=1200){for(const map of [KB.piano,KB.voca])if(map)list.forEach(m=>{const k=map[m];if(k){k.classList.add('on');setTimeout(()=>k.classList.remove('on'),ms)}});showLast(list[list.length-1])}
 function showLast(m){if(m==null)return;const f=+$('#pnKey').value;const n=midiToNote(m,f<0);$('#pnBig').textContent=prettyAcc(n.step+accStr(n.alter))+n.oct;const s=solf(n,f,'major',{});$('#pnName').innerHTML='<span class="syl">'+s.s+'</span> in '+esc(keyName(f,'major'));$('#pnHz').textContent=freq(m).toFixed(1)+' Hz'}
-function initPiano(){
-  KB.piano=buildKeyboard($('#pnKb'),36,84,{onDown:showLast});
+// Wide screens show C2-C6; narrow screens show two octaves, picked with the octave buttons.
+const pnNarrow=matchMedia('(max-width:900px)');KB.pnOct=3;
+function buildPiano(){
+  const lo=pnNarrow.matches?12*(KB.pnOct+1):36,hi=pnNarrow.matches?lo+24:84;
+  KB.piano=buildKeyboard($('#pnKb'),lo,hi,{onDown:showLast});
   labelKeys(KB.piano,$('#pnLabels').value,+$('#pnKey').value);
-  $('#pnNav').innerHTML=[2,3,4,5].map(o=>'<button class="btn" data-oct="'+o+'">C'+o+(o===4?' (middle)':'')+'</button>').join('');
-  $('#pnNav').onclick=e=>{const b=e.target.closest('[data-oct]');if(!b)return;const k=KB.piano[12*(+b.dataset.oct+1)];if(k)$('#pnWrap').scrollTo({left:k.offsetLeft-10,behavior:'smooth'})};
-  requestAnimationFrame(()=>{const k=KB.piano[57];if(k)$('#pnWrap').scrollLeft=k.offsetLeft-10});
+  $('#pnNav').hidden=!pnNarrow.matches;
+  $$('#pnNav [data-oct]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.oct===KB.pnOct))}
+function initPiano(){
+  $('#pnNav').innerHTML='<span class="muted" style="font-size:13px">Show octaves:</span>'+[2,3,4].map(o=>'<button class="btn" data-oct="'+o+'">C'+o+'–C'+(o+2)+(o===3?' (middle)':'')+'</button>').join('');
+  $('#pnNav').onclick=e=>{const b=e.target.closest('[data-oct]');if(!b)return;KB.pnOct=+b.dataset.oct;buildPiano()};
+  pnNarrow.addEventListener('change',buildPiano);buildPiano();
   KB.voca=buildKeyboard($('#vKb'),48,84,{});
 }
 const keyOpts=[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6].map(f=>'<option value="'+f+'">'+keyName(f,'major')+'</option>').join('');
@@ -1744,6 +1815,23 @@ $('#atClose').onclick=()=>{const d=$('#atest');if(d.close)d.close();else d.remov
 $('#atest').addEventListener('close',atClose);
 
 /* ---------------- navigation ---------------- */
+/* ---------------- today: daily goal + streak ---------------- */
+const GOAL=3;
+const dayKey=(t=Date.now())=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+function streak(days){let n=0,t=Date.now();if(!days[dayKey(t)])t-=864e5;while(days[dayKey(t)]){n++;t-=864e5}return n}
+function toast(msg){let el=$('#toast');if(!el){el=document.createElement('div');el.id='toast';el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}
+  el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),3200)}
+function logPractice(){const days=store.get('days',{});const k=dayKey();days[k]=(days[k]||0)+1;store.set('days',days);renderToday();
+  if(days[k]===GOAL)toast('Daily goal done. '+streak(days)+'-day streak. See you tomorrow!');else if(days[k]<GOAL)toast((GOAL-days[k])+' more to reach today’s goal.')}
+function renderToday(){const days=store.get('days',{});const n=days[dayKey()]||0,st=streak(days);
+  const tests=store.get('srHist',[]).filter(x=>x.test);const best=tests.length?Math.max(...tests.map(x=>x.s)):null;
+  const lvl=store.get('srLevel',0);
+  $('#today').classList.toggle('done',n>=GOAL);
+  $('#today').innerHTML='<span class="goal">Today <span class="pips">'+Array.from({length:GOAL},(_,i)=>'<i class="'+(i<n?'on':'')+'"></i>').join('')+'</span><b>'+Math.min(n,GOAL)+'/'+GOAL+'</b> exercises</span>'
+    +'<span><b>'+st+'</b> day streak</span>'
+    +(best!=null?'<span>Best test <b>'+best+'</b></span>':'')
+    +'<button class="btn primary next" type="button" id="todayGo">'+(n>=GOAL?'Keep going':n?'Next exercise':'Start today’s exercise')+' · '+esc(LEVELS[lvl].name)+'</button>';
+  $('#todayGo').onclick=()=>{go('sight');$('#stPractice').click();srNew();$('#srGo').scrollIntoView({behavior:'smooth',block:'center'})}}
 function go(v){document.body.dataset.view=v;$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);$$('.nav button').forEach(b=>{if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if((v==='piano'||v==='voca')&&!KB.inited){KB.inited=true;initPiano()}
   if(v==='sight'&&SR)requestAnimationFrame(()=>srRender(!!SR.grade));if(v==='coach')requestAnimationFrame(renderCoachStaff);
@@ -1758,11 +1846,12 @@ addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+** to attach your sh
 - “Play the tenor part at half speed”
 You can also attach a recording or video of yourself singing, and I'll grade your pitch, rhythm and dynamics against the music.
 I've loaded an example piece, **Evening Hymn**, so you can try it right now.`));
-syncBpm();srHist();keyQuiz();
+syncBpm();srHist();keyQuiz();renderToday();
 const h0=(location.hash||'').slice(1);go(['coach','sight','piano','voca'].includes(h0)?h0:'coach');
 SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srHints').checked=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
 srNew();
 renderCoachStaff();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{renderCoachStaff();if(SR)srRender(!!SR.grade)});
+requestAnimationFrame(()=>scrollTo(0,0));
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(!$('#v-coach').hidden)renderCoachStaff();if(!$('#v-sight').hidden&&SR)srRender(!!SR.grade)},200)});
 </script>
