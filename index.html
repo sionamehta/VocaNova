@@ -515,6 +515,7 @@ main{padding-block:32px 56px}
       <div class="chathead">
         <div class="avatar"><svg viewBox="0 0 32 32"><g fill="#fff"><ellipse cx="9.6" cy="23.5" rx="4.2" ry="3.1" transform="rotate(-22 9.6 23.5)"/><ellipse cx="22.6" cy="20.5" rx="4.2" ry="3.1" transform="rotate(-22 22.6 20.5)"/><rect x="12.4" y="8.6" width="2" height="14.6" rx="1"/><rect x="25.4" y="5.6" width="2" height="14.6" rx="1"/><path d="M12.4 8 L27.4 4.6 V9.2 L12.4 12.6 Z"/></g></svg></div>
         <div><h2>Voca Coach</h2><div class="muted" style="font-size:12px" id="aiState">Connecting to Claude…</div></div>
+        <button class="btn ghost" id="coachReset" type="button" style="margin-left:auto" hidden title="Remove the saved sheet music and chat">Start over</button>
       </div>
       <div class="log" id="log" aria-live="polite"></div>
       <div class="chips" id="chips"></div>
@@ -1179,7 +1180,7 @@ function startingNote(part){part=resolvePart(part);const ev=partEvents(part,0,S.
   const m=S.score.measures[ev.mi];const t=tonicOf(m.key.f,m.key.mode);const sc=m.key.mode==='minor'?[0,3,7,12]:[0,4,7,12];let root=48+t.pc;while(root+7<ev.midi-5)root+=12;
   const seq=sc.map(s=>root+s);Player.play({events:[...seq.map((x,i)=>({midi:x,start:i*0.5,dur:0.48,vel:0.24})),...seq.slice(0,3).map(x=>({midi:x,start:2.2,dur:1.2,vel:0.16})),{midi:ev.midi,start:3.8,dur:2.2,vel:0.36}],bpm:60});
   setTimeout(()=>flashKeys([ev.midi],2200),3800);const s=solf(ev.nt,m.key.f,m.key.mode,solOpt());return {note:pretty(ev.nt),syl:s.s,key:keyName(m.key.f,m.key.mode)}}
-$('#partSel').onchange=e=>{S.part=e.target.value;$('#pmPart').value=S.part;renderCoachStaff()};
+$('#partSel').onchange=e=>{S.part=e.target.value;$('#pmPart').value=S.part;renderCoachStaff();coachSave()};
 ['#fromM','#toM','#minorSel','#soSel','#sylChk'].forEach(s=>$(s).addEventListener('change',renderCoachStaff));
 $('#spd').oninput=e=>$('#spdOut').textContent=e.target.value+'%';
 $('#bPart').onclick=()=>coachPlay({});$('#bAll').onclick=()=>coachPlay({all:true});$('#bStopC').onclick=()=>Player.stop();
@@ -1310,7 +1311,7 @@ async function coachSend(text){
     else{b.innerHTML=(e&&e.text?md(e.text):'')+'<p>'+esc(errCopy(e))+'</p>';if(e&&['not_granted','sampling_disabled'].includes(e.code)){SAMPLE=null;$('#aiState').textContent='AI coach off · playback & solfège still work'}}
     b.insertAdjacentHTML('beforeend',S.pendingCards.join(''));
     S.turns.pop();
-  }finally{S.busy=false;toolLineEl=null;$('#sendBtn').hidden=false;$('#stopBtn').hidden=true;$('#log').scrollTop=1e9;renderChips()}
+  }finally{S.busy=false;toolLineEl=null;$('#sendBtn').hidden=false;$('#stopBtn').hidden=true;$('#log').scrollTop=1e9;renderChips();coachSave()}
 }
 const autosize=()=>{const t=$('#msg');t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'};
 $('#msg').addEventListener('input',autosize);
@@ -1390,10 +1391,10 @@ async function readSheet(file){
       for(const m of res.measures||[]){if(+m.n>lastN||!acc.measures.some(x=>+x.n===+m.n)){acc.measures.push(m);if(m.key_fifths!=null)acc.curF=+m.key_fifths;if(m.time)acc.curT=m.time;lastN=Math.max(lastN,+m.n||0)}}
     }
     if(!acc.parts||!acc.measures.length)throw {code:'invalid_json'};
-    S.score=buildScore(acc);S.part=S.score.parts[0];S.grade=null;S.lastGrade=null;$('#reportCard').innerHTML='';renderPiece();renderCoachStaff();musicDot();refreshPianoMusic();
+    S.score=buildScore(acc);S.raw=acc;S.part=S.score.parts[0];S.grade=null;S.lastGrade=null;$('#reportCard').innerHTML='';renderPiece();renderCoachStaff();musicDot();refreshPianoMusic();
     const m0=S.score.measures[0];
     note.innerHTML='Read <b>'+esc(S.score.title)+'</b>: '+esc(keyName(m0.key.f,m0.key.mode))+', '+esc(m0.time)+', '+S.score.measures.length+' measures, parts '+S.score.parts.map(esc).join(', ')+(total>canvases.length?' (first '+canvases.length+' of '+total+' pages)':'')+'. Check the notes in the Music panel; AI reading can make mistakes.';
-    S.pending.push('[The student attached sheet music "'+file.name+'" and the app read it: '+S.score.title+'.]');
+    S.pending.push('[The student attached sheet music "'+file.name+'" and the app read it: '+S.score.title+'.]');coachSave();
   }catch(e){note.textContent=e&&e.code?errCopy(e):('Couldn’t read that file. '+(e&&e.message?e.message:''))}
 }
 
@@ -1866,9 +1867,34 @@ function go(v){document.body.dataset.view=v;$$('.view').forEach(s=>s.hidden=s.id
   try{if(['coach','sight','piano','voca'].includes(v)&&location.hash!=='#'+v)history.replaceState(null,'','#'+v)}catch(e){}}
 $$('.nav button').forEach(b=>b.onclick=()=>go(b.dataset.view));
 
+/* ---------------- saved piece & chat ---------------- */
+// The uploaded piece and the coach chat are kept in this browser so a refresh doesn't lose them.
+function coachSave(){
+  if(S.raw){const put=v=>{try{localStorage.setItem('vn.piece',JSON.stringify(v));return true}catch(e){return false}};if(!put(S.raw))put({...S.raw,pages:[]})}
+  const log=$('#log').cloneNode(true);log.querySelectorAll('.thinking,.restored,audio,video,[data-save]').forEach(el=>el.remove());
+  const msgs=[...log.children].slice(-60).map(el=>({c:el.className,h:el.innerHTML}));
+  store.set('coachChat',{turns:S.turns,pending:S.pending.filter(t=>!/attached a (recording|video)/.test(t)),part:S.part,msgs});
+  $('#coachReset').hidden=!S.raw&&!S.turns.length;
+}
+function coachRestore(){
+  const raw=store.get('piece',null);
+  if(raw&&Array.isArray(raw.measures)&&raw.measures.length){try{S.score=buildScore(raw);S.raw=raw}catch(e){S.score=null}}
+  const chat=store.get('coachChat',null);
+  if(S.score){S.part=chat&&S.score.parts.includes(chat.part)?chat.part:S.score.parts[0];renderPiece();refreshPianoMusic()}
+  if(!chat||!Array.isArray(chat.msgs)||!chat.msgs.length)return false;
+  S.turns=Array.isArray(chat.turns)?chat.turns:[];S.pending=Array.isArray(chat.pending)?chat.pending:[];
+  for(const m of chat.msgs){const d=document.createElement('div');d.className=m.c;d.innerHTML=m.h;$('#log').appendChild(d)}
+  addMsg('note restored','Welcome back. Your sheet music and our chat were saved in this browser.');
+  $('#coachReset').hidden=false;return true;
+}
+$('#coachReset').onclick=()=>{
+  if(!confirm('Remove the saved sheet music and chat from this browser?'))return;
+  store.set('piece',null);store.set('coachChat',null);location.reload();
+};
+
 /* ---------------- boot ---------------- */
 renderChips();deskState();
-addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+** to attach your sheet music (PDF or photo), then ask me things like:
+if(!coachRestore())addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+** to attach your sheet music (PDF or photo), then ask me things like:
 - “Solfège the alto part”
 - “What dynamics should I watch for?”
 - “Play the tenor part at half speed”
