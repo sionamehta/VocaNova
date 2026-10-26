@@ -986,7 +986,7 @@ function reportHTML(r,title,opt={}){
    '<div class="bars">'+bar('Pitch',r.pitch)+bar('Right notes',r.notes)+bar('Rhythm',r.rhythm)+bar('Stayed in key',r.inTune)+bar('Dynamics',r.dynamics)+'</div></div>'+
    '<div class="fb"><div class="well"><h4>What went well</h4><ul>'+fb.well.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div><div class="fix"><h4>What to work on</h4><ul>'+fb.fix.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div></div>'+
    (r.wave?'<div><div class="mhead"><div class="eyebrow">Your recording · '+fmtTime(r.recDur||0)+'</div>'+(opt.recBtn||'')+'</div><svg class="wave" viewBox="0 0 180 40" preserveAspectRatio="none"><path d="'+r.wave.map((v,i)=>{const h=Math.max(0.4,Math.min(1,v)*19);return 'M'+(i+0.5)+' '+(20-h).toFixed(1)+'V'+(20+h).toFixed(1)}).join('')+'"/></svg>'+(r.peakDb<-26?'<div class="warnline">Your recording is very quiet. Hold the phone closer or sing out more so the grade is accurate.</div>':'')+(opt.recBody||'')+'</div>':'')+
-   '<div><div class="mhead"><div class="eyebrow">Measure by measure · tap one to hear it</div><button class="btn" data-mplay="all">▶ Play all measures</button></div><div class="mstrip">'+strip+'</div></div>'+
+   '<div><div class="mhead"><div class="eyebrow">Measure by measure · tap one to hear it</div><div class="row" style="gap:8px"><button class="btn" data-mplay="all">▶ Play all measures</button><button class="btn ghost" data-mstop>Stop</button></div></div><div class="mstrip">'+strip+'</div></div>'+
    '<div class="legend"><span><i style="background:var(--good)"></i>on pitch</span><span><i style="background:var(--warn)"></i>a little off</span><span><i style="background:var(--bad)"></i>needs work</span><span>You sang at about ♩ = '+r.sungBpm+'</span></div></div>';
 }
 function gradeSummary(r,label){
@@ -1182,7 +1182,7 @@ $('#msg').addEventListener('input',autosize);
 $('#msg').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();coachSend($('#msg').value)}});
 $('#composer').onsubmit=e=>{e.preventDefault();coachSend($('#msg').value)};
 $('#stopBtn').onclick=()=>S.ctl&&S.ctl.abort();
-document.addEventListener('click',e=>{const b=e.target.closest('[data-mplay]');if(!b)return;const all=b.dataset.mplay==='all';
+document.addEventListener('click',e=>{if(e.target.closest('[data-mstop]')){Player.stop();highlightRefs(srRefs,-1);return}const b=e.target.closest('[data-mplay]');if(!b)return;const all=b.dataset.mplay==='all';
   if(b.closest('#srResult')){all?srPlayAll():srPlayMeasure(+b.dataset.mplay);return}if(!S.score)return;
   const part=(S.grade&&S.grade.part)||S.part;
   if(all){const ns=[...b.closest('.report').querySelectorAll('[data-mplay]:not([data-mplay="all"])')].map(x=>S.score.measures[+x.dataset.mplay].n);coachPlay({part,from:Math.min(...ns),to:Math.max(...ns),speed:80});return}
