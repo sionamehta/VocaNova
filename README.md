@@ -48,7 +48,9 @@ It's all one file: **`index.html`**.
 | Microphone (Hey Voca listening, live recording) | ❌ blocked | ✅ |
 | AI coach chat, reading PDFs, Voca's smart answers | ✅ | ❌ needs an AI connection |
 
-The AI features use Claude through the Claude app. To get them working on your own site, add a small server that connects to the Claude API with your own API key.
+The AI features use Claude through the Claude app. To get them working on your own site, set up the small coach server in [`server/`](server/README.md), which connects to the Claude API with your own API key.
+
+The **Test audio** button at the top checks your speakers, your microphone and a short recording, and tells you which note you're singing.
 
 ## Built with
 

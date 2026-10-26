@@ -736,9 +736,46 @@ async function renderWav(events,bpm){
 /* ---------------- Claude capabilities ---------------- */
 let SAMPLE=null,DL=null,LIM=null;
 const AI_OK=()=>!!SAMPLE;
-function errCopy(e){const c=e&&e.code;return({not_granted:'Claude access wasn’t allowed for this page, so the AI coach is off. The piano, playback, solfège and sight-reading still work.',sampling_disabled:'Claude isn’t available on this account, so the AI coach is off.',rate_limited:'Too many requests right now. Wait a minute, then try again.',session_expired:'Please sign in to Claude again, then try again.',image_rejected:'That image couldn’t be read. Try a clearer photo or a PDF.',refused:'The coach couldn’t answer that. Try asking another way.',invalid_json:'I had trouble reading that page. A sharper scan or a straight-on photo helps.',prompt_too_large:'That was too much at once. Try fewer pages or a shorter question.',images_unavailable:'Sending images to Claude isn’t available here, so I can’t read sheet music in this view.',tools_unavailable:'The coach can’t use the app’s tools in this view.'}[c])||'Something went wrong reaching the coach. Try again.'}
+function errCopy(e){const c=e&&e.code;return({not_granted:'Claude access wasn’t allowed for this page, so the AI coach is off. The piano, playback, solfège and sight-reading still work.',sampling_disabled:'Claude isn’t available on this account, so the AI coach is off.',rate_limited:'Too many requests right now. Wait a minute, then try again.',session_expired:'Please sign in to Claude again, then try again.',image_rejected:'That image couldn’t be read. Try a clearer photo or a PDF.',refused:'The coach couldn’t answer that. Try asking another way.',network:'Couldn’t reach the coach server. Check your internet connection and try again.',server_key:'The coach server’s Claude API key is missing or wrong. Check it in your server settings.',invalid_json:'I had trouble reading that page. A sharper scan or a straight-on photo helps.',prompt_too_large:'That was too much at once. Try fewer pages or a shorter question.',images_unavailable:'Sending images to Claude isn’t available here, so I can’t read sheet music in this view.',tools_unavailable:'The coach can’t use the app’s tools in this view.'}[c])||'Something went wrong reaching the coach. Try again.'}
+/* Outside Claude, the coach can use your own server instead (see server/README.md). */
+const COACH_URL='';
+function coachServer(url){
+  const post=async(body,signal)=>{let r;
+    try{r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal})}
+    catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw {code:d.error||'upstream'};
+    if(d.stop_reason==='refusal')throw {code:'refused'};return d};
+  const textOf=c=>(c||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const merge=msgs=>{const out=[];for(const m of msgs){const last=out[out.length-1];
+    if(last&&last.role===m.role&&typeof last.content==='string'&&typeof m.content==='string')last.content+='\n\n'+m.content;else out.push({...m})}return out};
+  const sample=async(msgs,opt={})=>{
+    const tools=opt.tools||[],defs=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema}));
+    const messages=merge(msgs);let text='';
+    for(let round=0;round<8;round++){
+      let d;try{d=await post({messages,tools:defs,tier:opt.modelTier},opt.signal)}catch(e){if(text)e.text=text;throw e}
+      const t=textOf(d.content);if(t){text+=(text?'\n\n':'')+t;opt.onText&&opt.onText({text})}
+      if(d.stop_reason!=='tool_use')return {text,truncated:d.stop_reason==='max_tokens'};
+      messages.push({role:'assistant',content:d.content});const results=[];
+      for(const b of d.content.filter(b=>b.type==='tool_use')){const tool=tools.find(x=>x.name===b.name);
+        try{if(!tool)throw new Error('Unknown tool');const out=await tool.execute(b.input||{});results.push({type:'tool_result',tool_use_id:b.id,content:String(out??'Done.')})}
+        catch(e){results.push({type:'tool_result',tool_use_id:b.id,content:String(e&&e.message||e),is_error:true})}}
+      messages.push({role:'user',content:results});
+    }
+    return {text,truncated:true};
+  };
+  const b64=blob=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(',')[1]);f.onerror=rej;f.readAsDataURL(blob)});
+  sample.json=async(prompt,opt={})=>{
+    const imgs=await Promise.all((opt.images||[]).map(async b=>({type:'image',source:{type:'base64',media_type:b.type||'image/jpeg',data:await b64(b)}})));
+    const d=await post({messages:[{role:'user',content:[...imgs,{type:'text',text:prompt+'\n\nReply with only the JSON object, no other text.'}]}],tier:opt.modelTier},opt.signal);
+    const t=textOf(d.content),i=t.indexOf('{'),j=t.lastIndexOf('}');
+    try{return JSON.parse(t.slice(i,j+1))}catch(e){throw {code:'invalid_json'}}
+  };
+  sample.limits=async()=>({tools:true,images:{maxCount:3}});
+  return sample;
+}
 (async()=>{
   try{if(window.claude&&claude.use){SAMPLE=await claude.use('sample');DL=await claude.use('downloads');if(SAMPLE)LIM=await SAMPLE.limits().catch(()=>null)}}catch(e){}
+  if(!SAMPLE&&COACH_URL){SAMPLE=coachServer(COACH_URL);LIM=await SAMPLE.limits()}
   $('#aiState').textContent=SAMPLE?'AI coach ready · reads PDFs, solfèges, grades singing':'AI coach unavailable here · playback & solfège still work';
   $('#bSave').hidden=!DL;
 })();
