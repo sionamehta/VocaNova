@@ -218,7 +218,14 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .scan ol{margin:6px 0 0;padding-left:1.3em;font-size:14px}
 .scan li{margin:3px 0}
 .hist{display:flex;flex-wrap:wrap;gap:6px}
-.hist span{font-size:12px;background:var(--sunk);border-radius:6px;padding:3px 7px;font-variant-numeric:tabular-nums}
+.hist>span{font-size:12px;background:var(--sunk);border-radius:6px;padding:3px 7px;font-variant-numeric:tabular-nums}
+.hist.list{flex-direction:column;flex-wrap:nowrap;gap:4px}
+.hrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 10px;padding:6px 8px;border-radius:8px;background:var(--sunk);font-size:13px}
+.hrow b{font-variant-numeric:tabular-nums;font-size:15px}
+.hrow small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.hrow.latest{background:var(--accent-soft);outline:2px solid var(--accent)}
+.hrow .tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:1px}
+.histnote{font-size:11px;color:var(--muted);margin:2px 0 0}
 .countdown{font-family:var(--f-display);font-weight:800;font-size:28px;font-variant-numeric:tabular-nums}
 .lessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
 .lesson{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0}
@@ -349,7 +356,7 @@ h2,.piece h3{letter-spacing:-.01em}
 @media (max-width:900px){.atest-btn{margin-left:auto}}
 /* ===== Plain site layer: square corners, flat sections, ordinary website chrome ===== */
 :root{--r:0px;--shadow:none;--f-display:var(--f-body)}
-.atest,.atest-step,.btn,.field select,.field input,.card,.paper,.chatcol,.msg,.msg code,.audiocard,.chip,.composer textarea,.clip,.fact,.thumbs img,.seg,.seg button,.bar,.bar i,.fb>div,.mstrip button,.legend i,.nchips span,.lvlpill,.countover,.srlive,.meter,.meter i,.hist span,.lesson,.kq,.kbwrap,.vform input,.vlog div,.notice,.avatar,.chathead,.atest-btn{border-radius:0}
+.atest,.atest-step,.btn,.field select,.field input,.card,.paper,.chatcol,.msg,.msg code,.audiocard,.chip,.composer textarea,.clip,.fact,.thumbs img,.seg,.seg button,.bar,.bar i,.fb>div,.mstrip button,.legend i,.nchips span,.lvlpill,.countover,.srlive,.meter,.meter i,.hist>span,.hrow,.lesson,.kq,.kbwrap,.vform input,.vlog div,.notice,.avatar,.chathead,.atest-btn{border-radius:0}
 .card,.chatcol,.lesson,.paper{box-shadow:none}
 h1,h2,h3{font-weight:700;letter-spacing:0}
 /* header and nav: plain bar with underlined current page */
@@ -1584,7 +1591,12 @@ function srListen(){const t=SR&&SR.take;if(!t||!t.buf)return;
 }
 function srPlayAll(){if(!SR)return;Player.play({events:srEvents(),bpm:SR.bpm,onTick:b=>highlightRefs(srRefs,b),onEnd:()=>highlightRefs(srRefs,-1)})}
 function srPlayMeasure(mi){if(!SR)return;const m=SR.measures[mi];const ev=srEvents().filter(e=>e.mi===mi).map(e=>({...e,start:e.start-m.start}));Player.play({events:ev,bpm:SR.bpm*0.85})}
-function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').innerHTML=h.length?h.slice(0,12).map(x=>'<span>L'+(x.lvl+1)+' · '+x.s+'</span>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
+// "Today 9:41 PM", "Yesterday 8:02 PM", "Oct 24, 7:15 PM"
+function whenLabel(t){if(!t)return '';const d=new Date(t),now=new Date(),day=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();
+  const diff=Math.round((day(now)-day(d))/864e5),time=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  if(Date.now()-t<60e3)return 'Just now';return (diff===0?'Today':diff===1?'Yesterday':d.toLocaleDateString([],{month:'short',day:'numeric',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}))+', '+time}
+function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').classList.toggle('list',!!h.length);
+  $('#srHist').innerHTML=h.length?'<div class="histnote">Newest at the top</div>'+h.slice(0,12).map((x,i)=>'<div class="hrow'+(i===0?' latest':'')+'"><span>Level '+(x.lvl+1)+(i===0?'<span class="tag">Latest</span>':'')+'</span><b>'+x.s+'</b><small>'+esc(whenLabel(x.t))+'</small></div>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
   const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl).slice(0,5);
   $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.';if(typeof renderToday==='function'&&$('#today'))try{renderToday()}catch(e){}}
 $('#srLevel').innerHTML=LEVELS.map((l,i)=>'<option value="'+i+'">'+l.name+'</option>').join('');
