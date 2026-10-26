@@ -1769,7 +1769,7 @@ $('#pmPlay').onclick=()=>{const p=$('#pmPart').value;const ms=S.score.measures;c
 
 /* ---------------- HEY VOCA ---------------- */
 const V={rec:null,listening:false,awaitUntil:0,last:null};
-function vSay(t){$('#vReply').textContent=t;if($('#vTalk').checked&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}}
+function vSay(t){$('#vReply').textContent=t;if($('#vState').textContent==='Thinking…')$('#vState').textContent=V.listening?'Listening for “Hey Voca”':'Tap to let Voca listen';if($('#vTalk').checked&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}}
 V.turns=store.get('vocaTurns',[]);
 function vRenderLog(){const t=V.turns;let h='';for(let i=0;i+1<t.length;i+=2)h='<div><b>'+esc(t[i].content)+'</b><br>'+esc(t[i+1].content)+'</div>'+h;$('#vLog').innerHTML=h||'<span class="muted" style="font-size:13px">Nothing yet. Voca remembers your recent questions so you can ask follow-ups.</span>'}
 function vLog(q,a){if(!q||!a)return;V.turns.push({role:'user',content:String(q).slice(0,600)},{role:'assistant',content:String(a).slice(0,1500)});if(V.turns.length>40)V.turns=V.turns.slice(-40);store.set('vocaTurns',V.turns);vRenderLog()}
@@ -1790,6 +1790,7 @@ function runCommand(raw){
   if(/\b(up an octave|octave up|higher)\b/.test(t)&&V.lastNotes){const ns=V.lastNotes.map(x=>x+12);playMidis(ns,{together:V.lastTogether});V.lastNotes=ns;vSay('Up an octave.');return true}
   if(/\b(down an octave|octave down|lower)\b/.test(t)&&V.lastNotes&&!/[a-g]\s*(sharp|flat|#|b)?\s*\d/.test(t)){const ns=V.lastNotes.map(x=>x-12);playMidis(ns,{together:V.lastTogether});V.lastNotes=ns;vSay('Down an octave.');return true}
   if(/(tuning|a ?440|tuning note)/.test(t)){const f=()=>playMidis([69],{hold:3});f();V.last=f;vSay('A 440.');return true}
+  if(!S.score&&(/(starting note|first note|my note)/.test(t)||/play (?:the |my )?\w+ part/.test(t))){vSay('Add your sheet music on the Coach tab first, then I can play your part and your starting note.');return true}
   if(/(starting note|first note|my note)/.test(t)&&S.score){let part=S.part;S.score.parts.forEach(p=>{if(t.includes(p.toLowerCase()))part=p});const f=()=>startingNote(part);const r=f();V.last=f;if(r){vSay('Here’s the key, then your note: '+r.note.replace(/\d/,'')+', '+r.syl+'.');return true}}
   const pm=t.match(/play (?:the |my )?(\w+) part/);if(pm&&S.score){let part=null;if(pm[1]==='my')part=S.part;else part=S.score.parts.find(p=>p.toLowerCase().startsWith(pm[1]));if(part){const f=()=>coachPlay({part});f();V.last=f;vSay('Playing the '+part+' part.');return true}}
   const sy=t.match(/\b(do|re|mi|fa|sol|so|la|ti)\b.*\bin\b\s+(.+)/);
@@ -1804,13 +1805,14 @@ async function vHandle(text){
   text=text.trim();if(!text)return;$('#vHeard').textContent='“'+text+'”';
   if(runCommand(text)){vLog(text,$('#vReply').textContent);return}
   if(!SAMPLE){vSay('I can play notes, chords and scales. Try “play B flat”.');vLog(text,$('#vReply').textContent);return}
-  $('#vReply').textContent='Thinking…';
+  $('#vReply').textContent='Thinking…';$('#vState').textContent='Thinking…';playMidis([79],{hold:0.12});
   const rules='You are Voca, the friendly voice assistant in the Voca Nova singing app for choir and solo singers. Your words are read aloud, so write plain spoken sentences with no markdown, lists or symbols. Keep answers to 1–3 short sentences; if the student asks you to explain more or go deeper, use up to 6 sentences and build on what you said before. The earlier messages are your conversation with this student: use them to understand follow-ups like "explain that more" or "what about minor?". If they want to hear notes, call play_notes (C4 = middle C; their default octave is '+$('#vVoice').value+').'+(S.score?' Their current music: "'+S.score.title+'", '+keyName(S.score.measures[0].key.f,S.score.measures[0].key.mode)+', parts '+S.score.parts.join(', ')+'; play_music plays a part on piano.':'');
   const hist=V.turns.slice(-24);const tools=LIM?.tools?coachTools().filter(x=>x.name==='play_notes'||(S.score&&x.name==='play_music')):null;
   try{const r=await SAMPLE([{role:'user',content:rules},...hist,{role:'user',content:text}],{cache:false,modelTier:'quick',...(tools?{tools}:{})});
     const ans=r.text.trim();vSay(ans);vLog(text,ans)}catch(e){vSay(errCopy(e))}
 }
-const WAKE=/\b(?:hey|hi|ok|okay|a|hay)\s*,?\s*(?:voca|vocal|voka|vocca|boca|bocca|vaca|vokka|voker|vocab|focca|foca)s?\b[,.!]?/i;
+// Speech recognition often mishears "Voca" (Loca, Boca, Vocal, Yoga, Coca...), so match loosely.
+const WAKE=/\b(?:hey|hi|ok(?:ay)?|a|hay|hate)\s*,?\s*(?:[vbwflmcgpy]h?o[ck]{1,2}[aeo][lrs]?|vaca|vocab|yoga|focus|local|vocal)(?:\s*nova)?\b[,.!]?/i;
 function vListen(on){
   const Rec=window.SpeechRecognition||window.webkitSpeechRecognition;const notice=$('#vNotice');
   if(on&&!Rec){notice.hidden=false;notice.innerHTML='This browser can’t do speech recognition, so Voca can’t listen here. You can still type commands below.';return}
