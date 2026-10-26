@@ -1,0 +1,12 @@
+name = "vocanova-coach"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# The site allowed to call this server, e.g. "https://sionamehta.github.io".
+# Use a comma-separated list for more than one. Keep this set: anyone else's page is refused.
+ALLOWED_ORIGINS = "https://sionamehta.github.io"
+
+# The API key is a secret, not a var. Set it with:
+#   npx wrangler secret put ANTHROPIC_API_KEY

@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Voca Nova</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,6 +66,18 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
 .nav button:hover{color:var(--ink)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--nova);display:inline-block}
+.atest-btn{border-radius:999px}
+.atest{border:1px solid var(--line);border-radius:var(--r);padding:0;background:var(--surface);color:var(--ink);width:min(440px,calc(100vw - 32px));box-shadow:var(--shadow)}
+.atest::backdrop{background:rgba(20,10,40,.45)}
+.atest-in{padding:18px;display:flex;flex-direction:column;gap:14px}
+.atest-in h2{margin:0;font-family:var(--f-display);font-size:20px}
+.atest-step{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;background:var(--sunk)}
+.atest-step .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.atest .meter{background:var(--surface)}
+.atest .meter.off{background:repeating-linear-gradient(90deg,var(--surface) 0 6px,transparent 6px 10px)}
+.atest-msg{font-size:13px;color:var(--muted);min-height:1.3em}
+.atest-note{font-family:var(--f-display);font-weight:800;font-size:28px;line-height:1}
+.atest-note small{font-family:var(--f-body);font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
 
 main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .view{min-width:0}
@@ -349,7 +363,7 @@ h2,.piece h3{letter-spacing:-.01em}
 .vlog div{background:var(--accent-soft)}
 .vlog div b{color:var(--accent)}
 .notice{background:var(--c-voca-soft)}
-@media (max-width:900px){.top{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--surface)}.nav{background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:0;box-shadow:0 -6px 20px -12px rgba(60,20,110,.35)}}
+@media (max-width:900px){.atest-btn{margin-left:auto}.top{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--surface)}.nav{background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:0;box-shadow:0 -6px 20px -12px rgba(60,20,110,.35)}}
 </style>
 
 <header class="top"><div class="top-in wrap">
@@ -363,7 +377,32 @@ h2,.piece h3{letter-spacing:-.01em}
     <button data-view="piano"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M13 4v16M18 4v16"/><path d="M8 4v9M13 4v9" stroke-width="4"/></svg>Piano</button>
     <button data-view="voca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Hey Voca</button>
   </nav>
+  <button class="btn atest-btn" id="atestOpen" title="Check your speakers and microphone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>Test audio</button>
 </div></header>
+
+<dialog class="atest" id="atest" aria-labelledby="atestTitle">
+  <div class="atest-in">
+    <h2 id="atestTitle">Test your audio</h2>
+    <div class="atest-step">
+      <div class="eyebrow">1 · Speakers</div>
+      <div class="row"><button class="btn primary" id="atSpk">Play test sound</button></div>
+      <div class="atest-msg" id="atSpkMsg">You should hear four piano notes going up: do, mi, sol, do.</div>
+    </div>
+    <div class="atest-step">
+      <div class="eyebrow">2 · Microphone</div>
+      <div class="row"><button class="btn primary" id="atMic">Check microphone</button></div>
+      <div class="micbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><div class="meter off" id="atMeterWrap"><i id="atMeter"></i></div></div>
+      <div class="atest-note" id="atNote" aria-live="polite">–</div>
+      <div class="atest-msg" id="atMicMsg">Sing or hum one steady note and I'll tell you what I hear.</div>
+    </div>
+    <div class="atest-step">
+      <div class="eyebrow">3 · Recording</div>
+      <div class="row"><button class="btn" id="atRec" disabled>Record 3 seconds</button><audio id="atPlay" controls hidden></audio></div>
+      <div class="atest-msg" id="atRecMsg">Record yourself and play it back to check how you sound.</div>
+    </div>
+    <div class="row" style="justify-content:flex-end;display:flex"><button class="btn" id="atClose">Done</button></div>
+  </div>
+</dialog>
 
 <main class="wrap">
 
@@ -697,9 +736,46 @@ async function renderWav(events,bpm){
 /* ---------------- Claude capabilities ---------------- */
 let SAMPLE=null,DL=null,LIM=null;
 const AI_OK=()=>!!SAMPLE;
-function errCopy(e){const c=e&&e.code;return({not_granted:'Claude access wasn’t allowed for this page, so the AI coach is off. The piano, playback, solfège and sight-reading still work.',sampling_disabled:'Claude isn’t available on this account, so the AI coach is off.',rate_limited:'Too many requests right now. Wait a minute, then try again.',session_expired:'Please sign in to Claude again, then try again.',image_rejected:'That image couldn’t be read. Try a clearer photo or a PDF.',refused:'The coach couldn’t answer that. Try asking another way.',invalid_json:'I had trouble reading that page. A sharper scan or a straight-on photo helps.',prompt_too_large:'That was too much at once. Try fewer pages or a shorter question.',images_unavailable:'Sending images to Claude isn’t available here, so I can’t read sheet music in this view.',tools_unavailable:'The coach can’t use the app’s tools in this view.'}[c])||'Something went wrong reaching the coach. Try again.'}
+function errCopy(e){const c=e&&e.code;return({not_granted:'Claude access wasn’t allowed for this page, so the AI coach is off. The piano, playback, solfège and sight-reading still work.',sampling_disabled:'Claude isn’t available on this account, so the AI coach is off.',rate_limited:'Too many requests right now. Wait a minute, then try again.',session_expired:'Please sign in to Claude again, then try again.',image_rejected:'That image couldn’t be read. Try a clearer photo or a PDF.',refused:'The coach couldn’t answer that. Try asking another way.',network:'Couldn’t reach the coach server. Check your internet connection and try again.',server_key:'The coach server’s Claude API key is missing or wrong. Check it in your server settings.',invalid_json:'I had trouble reading that page. A sharper scan or a straight-on photo helps.',prompt_too_large:'That was too much at once. Try fewer pages or a shorter question.',images_unavailable:'Sending images to Claude isn’t available here, so I can’t read sheet music in this view.',tools_unavailable:'The coach can’t use the app’s tools in this view.'}[c])||'Something went wrong reaching the coach. Try again.'}
+/* Outside Claude, the coach can use your own server instead (see server/README.md). */
+const COACH_URL='';
+function coachServer(url){
+  const post=async(body,signal)=>{let r;
+    try{r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal})}
+    catch(e){if(e&&e.name==='AbortError')throw {code:'cancelled'};throw {code:'network'}}
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw {code:d.error||'upstream'};
+    if(d.stop_reason==='refusal')throw {code:'refused'};return d};
+  const textOf=c=>(c||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const merge=msgs=>{const out=[];for(const m of msgs){const last=out[out.length-1];
+    if(last&&last.role===m.role&&typeof last.content==='string'&&typeof m.content==='string')last.content+='\n\n'+m.content;else out.push({...m})}return out};
+  const sample=async(msgs,opt={})=>{
+    const tools=opt.tools||[],defs=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema}));
+    const messages=merge(msgs);let text='';
+    for(let round=0;round<8;round++){
+      let d;try{d=await post({messages,tools:defs,tier:opt.modelTier},opt.signal)}catch(e){if(text)e.text=text;throw e}
+      const t=textOf(d.content);if(t){text+=(text?'\n\n':'')+t;opt.onText&&opt.onText({text})}
+      if(d.stop_reason!=='tool_use')return {text,truncated:d.stop_reason==='max_tokens'};
+      messages.push({role:'assistant',content:d.content});const results=[];
+      for(const b of d.content.filter(b=>b.type==='tool_use')){const tool=tools.find(x=>x.name===b.name);
+        try{if(!tool)throw new Error('Unknown tool');const out=await tool.execute(b.input||{});results.push({type:'tool_result',tool_use_id:b.id,content:String(out??'Done.')})}
+        catch(e){results.push({type:'tool_result',tool_use_id:b.id,content:String(e&&e.message||e),is_error:true})}}
+      messages.push({role:'user',content:results});
+    }
+    return {text,truncated:true};
+  };
+  const b64=blob=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(',')[1]);f.onerror=rej;f.readAsDataURL(blob)});
+  sample.json=async(prompt,opt={})=>{
+    const imgs=await Promise.all((opt.images||[]).map(async b=>({type:'image',source:{type:'base64',media_type:b.type||'image/jpeg',data:await b64(b)}})));
+    const d=await post({messages:[{role:'user',content:[...imgs,{type:'text',text:prompt+'\n\nReply with only the JSON object, no other text.'}]}],tier:opt.modelTier},opt.signal);
+    const t=textOf(d.content),i=t.indexOf('{'),j=t.lastIndexOf('}');
+    try{return JSON.parse(t.slice(i,j+1))}catch(e){throw {code:'invalid_json'}}
+  };
+  sample.limits=async()=>({tools:true,images:{maxCount:3}});
+  return sample;
+}
 (async()=>{
   try{if(window.claude&&claude.use){SAMPLE=await claude.use('sample');DL=await claude.use('downloads');if(SAMPLE)LIM=await SAMPLE.limits().catch(()=>null)}}catch(e){}
+  if(!SAMPLE&&COACH_URL){SAMPLE=coachServer(COACH_URL);LIM=await SAMPLE.limits()}
   $('#aiState').textContent=SAMPLE?'AI coach ready · reads PDFs, solfèges, grades singing':'AI coach unavailable here · playback & solfège still work';
   $('#bSave').hidden=!DL;
 })();
@@ -1551,6 +1627,52 @@ $('#vChips').onclick=e=>{const b=e.target.closest('.chip');if(b){ac();vHandle(b.
 $('#vClear').onclick=()=>{V.turns=[];store.set('vocaTurns',[]);vRenderLog();vSay('Okay, I cleared our conversation.')};
 vRenderLog();
 $('#vVoice').value=store.get('vVoice','4');$('#vVoice').onchange=()=>store.set('vVoice',$('#vVoice').value);
+
+/* ---------------- audio test ---------------- */
+const AT={stop:null};
+async function atMicStream(){
+  if(srMic===undefined){try{srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
+  return srMic;
+}
+function atListen(stream){
+  const ctx=ac(),src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=4096;src.connect(an);
+  const buf=new Float32Array(an.fftSize),bar=$('#atMeter'),note=$('#atNote');let raf=0,busy=false,last=0,hist=[];
+  $('#atMeterWrap').classList.remove('off');
+  const loop=async now=>{raf=requestAnimationFrame(loop);an.getFloatTimeDomainData(buf);
+    let e=0;for(let i=0;i<buf.length;i++)e+=buf[i]*buf[i];const db=10*Math.log10(e/buf.length+1e-12);bar.style.width=clamp((db+62)/52*100,0,100)+'%';
+    if(busy||now-last<120)return;last=now;busy=true;
+    const fr=await pitchTrack(buf.slice(),ctx.sampleRate);busy=false;
+    const ms=fr.filter(f=>f.midi!=null&&f.db>-50&&f.midi>33&&f.midi<88).map(f=>f.midi);
+    if(ms.length)hist.push(median(ms));else hist.push(null);if(hist.length>5)hist.shift();
+    const got=hist.filter(m=>m!=null);if(got.length<3){if(!got.length)note.innerHTML='–';return}
+    const m=median(got),r=Math.round(m),c=Math.round((m-r)*100);
+    note.innerHTML=esc(pretty(midiToNote(r)))+'<small>'+(Math.abs(c)<=10?'in tune':Math.abs(c)+' cents '+(c>0?'sharp':'flat'))+'</small>';
+    $('#atMicMsg').textContent='Your microphone works.'};
+  raf=requestAnimationFrame(loop);
+  return ()=>{cancelAnimationFrame(raf);try{src.disconnect()}catch(e){}bar.style.width='0';$('#atMeterWrap').classList.add('off')};
+}
+$('#atestOpen').onclick=()=>{const d=$('#atest');if(d.showModal)d.showModal();else d.setAttribute('open','')};
+$('#atSpk').onclick=()=>{Player.stop();playMidis([60,64,67,72],{gap:0.45,hold:1});$('#atSpkMsg').textContent='Playing… If you heard nothing, turn up the volume and check that your phone isn’t on silent.'};
+$('#atMic').onclick=async()=>{
+  if(AT.stop)return;$('#atMicMsg').textContent='Asking for the microphone…';
+  const s=await atMicStream();
+  if(!s){$('#atMicMsg').textContent='The microphone isn’t available. Allow microphone access in your browser’s site settings. Inside the Claude app the mic is blocked, so open Voca Nova as its own website.';return}
+  AT.stop=atListen(s);$('#atMic').disabled=true;$('#atRec').disabled=!window.MediaRecorder;
+  $('#atMicMsg').textContent='Listening. Sing or hum one steady note.';
+};
+$('#atRec').onclick=async()=>{
+  const s=srMic;if(!s||!window.MediaRecorder)return;const chunks=[];let rec;
+  try{rec=new MediaRecorder(s)}catch(e){$('#atRecMsg').textContent='Recording isn’t supported in this browser.';return}
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  rec.onstop=()=>{const a=$('#atPlay');if(a.src)URL.revokeObjectURL(a.src);a.src=URL.createObjectURL(new Blob(chunks,{type:rec.mimeType||'audio/webm'}));a.hidden=false;a.play().catch(()=>{});
+    $('#atRec').disabled=false;$('#atRecMsg').textContent='Playing it back. Tap Record again to try another take.'};
+  $('#atRec').disabled=true;$('#atPlay').hidden=true;rec.start();
+  for(let k=3;k>0;k--){$('#atRecMsg').textContent='Recording… '+k;await sleep(1000)}
+  rec.stop();
+};
+const atClose=()=>{if(AT.stop){AT.stop();AT.stop=null}$('#atMic').disabled=false;$('#atNote').innerHTML='–';const a=$('#atPlay');a.pause()};
+$('#atClose').onclick=()=>{const d=$('#atest');if(d.close)d.close();else d.removeAttribute('open');atClose()};
+$('#atest').addEventListener('close',atClose);
 
 /* ---------------- navigation ---------------- */
 function go(v){document.body.dataset.view=v;$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);$$('.nav button').forEach(b=>{if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
