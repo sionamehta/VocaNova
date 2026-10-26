@@ -712,6 +712,7 @@ main{padding-block:32px 56px}
         <div class="row" style="margin-top:8px;gap:14px;align-items:flex-end">
           <label class="field">My voice<select id="vVoice"><option value="4">Soprano / Alto</option><option value="3">Tenor / Bass</option></select></label>
           <label class="chk"><input type="checkbox" id="vTalk" checked> Voca talks back</label>
+          <label class="field">Voca’s voice<select id="vSpeaker"><option value="">Best available</option></select></label>
         </div>
       </div>
       <div class="kbwrap"><div class="kb small" id="vKb"></div></div>
@@ -1768,8 +1769,23 @@ $('#pmStart').onclick=()=>{const r=startingNote($('#pmPart').value);if(r)$('#pmI
 $('#pmPlay').onclick=()=>{const p=$('#pmPart').value;const ms=S.score.measures;coachPlay({part:p,from:ms[0].n,to:ms[ms.length-1].n})};$('#pmStop').onclick=()=>Player.stop();
 
 /* ---------------- HEY VOCA ---------------- */
-const V={rec:null,listening:false,awaitUntil:0,last:null};
-function vSay(t){$('#vReply').textContent=t;if($('#vState').textContent==='Thinking…')$('#vState').textContent=V.listening?'Listening for “Hey Voca”':'Tap to let Voca listen';if($('#vTalk').checked&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}}
+const V={rec:null,listening:false,awaitUntil:0,last:null,saying:''};
+/* Voca's speaking voice: pick the most natural English voice the device has. */
+const VOICE_PREFS=[/natural|neural/i,/premium|enhanced/i,/google us english/i,/\b(ava|samantha|allison|zoe|evan|nathan|serena|daniel|karen|moira|tessa|jenny|aria|guy)\b/i,/google/i];
+function voiceList(){try{return (speechSynthesis.getVoices()||[]).filter(v=>/^en(-|_|$)/i.test(v.lang))}catch(e){return []}}
+function voiceScore(v){let sc=0;VOICE_PREFS.forEach((re,i)=>{if(re.test(v.name))sc+=50-i*8});if(/en-US/i.test(v.lang))sc+=6;if(/compact|eloquence|novelty|bad news|bells|boing|bubbles|cellos|whisper|zarvox|trinoids|albert|jester|organ|superstar|wobble|fred|junior|ralph|kathy|bahh/i.test(v.name))sc-=100;if(v.localService===false)sc+=3;return sc}
+function pickVoice(){const vs=voiceList();const want=store.get('vSpeaker','');return vs.find(v=>v.name===want)||vs.slice().sort((a,b)=>voiceScore(b)-voiceScore(a))[0]||null}
+function fillVoices(){const sel=$('#vSpeaker');if(!sel)return;const vs=voiceList().sort((a,b)=>voiceScore(b)-voiceScore(a));const want=store.get('vSpeaker','');
+  sel.innerHTML='<option value="">Best available'+(vs[0]?' ('+esc(vs[0].name)+')':'')+'</option>'+vs.map(v=>'<option'+(v.name===want?' selected':'')+' value="'+esc(v.name)+'">'+esc(v.name)+'</option>').join('')}
+try{fillVoices();speechSynthesis.addEventListener('voiceschanged',fillVoices)}catch(e){}
+$('#vSpeaker').onchange=e=>{store.set('vSpeaker',e.target.value);vSay('Hi, this is how I sound now.')};
+function vSay(t){$('#vReply').textContent=t;if($('#vState').textContent==='Thinking…')$('#vState').textContent=V.listening?'Listening for “Hey Voca”':'Tap to let Voca listen';
+  if(!$('#vTalk').checked||!window.speechSynthesis)return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));const v=pickVoice();if(v){u.voice=v;u.lang=v.lang}
+    u.rate=1;u.pitch=1;V.saying=t;u.onend=u.onerror=()=>{if(V.saying===t)V.saying=''};speechSynthesis.speak(u)}catch(e){}}
+// True when the recognizer is just hearing Voca's own voice through the speakers.
+function vEcho(heard){if(!V.saying)return false;const said=' '+V.saying.toLowerCase().replace(/[^a-z0-9' ]/g,' ')+' ';
+  const words=heard.toLowerCase().replace(/[^a-z0-9' ]/g,' ').split(/\s+/).filter(w=>w.length>1);return words.length>0&&words.every(w=>said.includes(' '+w+' '))}
 V.turns=store.get('vocaTurns',[]);
 function vRenderLog(){const t=V.turns;let h='';for(let i=0;i+1<t.length;i+=2)h='<div><b>'+esc(t[i].content)+'</b><br>'+esc(t[i+1].content)+'</div>'+h;$('#vLog').innerHTML=h||'<span class="muted" style="font-size:13px">Nothing yet. Voca remembers your recent questions so you can ask follow-ups.</span>'}
 function vLog(q,a){if(!q||!a)return;V.turns.push({role:'user',content:String(q).slice(0,600)},{role:'assistant',content:String(a).slice(0,1500)});if(V.turns.length>40)V.turns=V.turns.slice(-40);store.set('vocaTurns',V.turns);vRenderLog()}
@@ -1806,7 +1822,7 @@ async function vHandle(text){
   if(runCommand(text)){vLog(text,$('#vReply').textContent);return}
   if(!SAMPLE){vSay('I can play notes, chords and scales. Try “play B flat”.');vLog(text,$('#vReply').textContent);return}
   $('#vReply').textContent='Thinking…';$('#vState').textContent='Thinking…';playMidis([79],{hold:0.12});
-  const rules='You are Voca, the friendly voice assistant in the Voca Nova singing app for choir and solo singers. Your words are read aloud, so write plain spoken sentences with no markdown, lists or symbols. Keep answers to 1–3 short sentences; if the student asks you to explain more or go deeper, use up to 6 sentences and build on what you said before. The earlier messages are your conversation with this student: use them to understand follow-ups like "explain that more" or "what about minor?". If they want to hear notes, call play_notes (C4 = middle C; their default octave is '+$('#vVoice').value+').'+(S.score?' Their current music: "'+S.score.title+'", '+keyName(S.score.measures[0].key.f,S.score.measures[0].key.mode)+', parts '+S.score.parts.join(', ')+'; play_music plays a part on piano.':'');
+  const rules='You are Voca, the friendly voice assistant in the Voca Nova singing app for choir and solo singers. Your words are read aloud, so talk like a friendly person, not a textbook: plain, warm, conversational sentences with contractions, no markdown, lists, symbols or abbreviations. Keep answers to 1–3 short sentences; if the student asks you to explain more or go deeper, use up to 6 sentences and build on what you said before. The earlier messages are your conversation with this student: use them to understand follow-ups like "explain that more" or "what about minor?". If they want to hear notes, call play_notes (C4 = middle C; their default octave is '+$('#vVoice').value+').'+(S.score?' Their current music: "'+S.score.title+'", '+keyName(S.score.measures[0].key.f,S.score.measures[0].key.mode)+', parts '+S.score.parts.join(', ')+'; play_music plays a part on piano.':'');
   const hist=V.turns.slice(-24);const tools=LIM?.tools?coachTools().filter(x=>x.name==='play_notes'||(S.score&&x.name==='play_music')):null;
   try{const r=await SAMPLE([{role:'user',content:rules},...hist,{role:'user',content:text}],{cache:false,modelTier:'quick',...(tools?{tools}:{})});
     const ans=r.text.trim();vSay(ans);vLog(text,ans)}catch(e){vSay(errCopy(e))}
@@ -1819,7 +1835,11 @@ function vListen(on){
   if(!on){V.listening=false;try{V.rec&&V.rec.stop()}catch(e){}$('#orb').setAttribute('aria-pressed','false');$('#vState').textContent='Tap to let Voca listen';return}
   const rec=new Rec();V.rec=rec;rec.continuous=true;rec.interimResults=true;rec.lang='en-US';
   rec.onresult=ev=>{let fin='',interim='';for(let i=ev.resultIndex;i<ev.results.length;i++){const r=ev.results[i];if(r.isFinal)fin+=r[0].transcript;else interim+=r[0].transcript}
-    const show=(fin||interim).trim();if(show)$('#vHeard').textContent='“'+show+'”';
+    const show=(fin||interim).trim();
+    if(show&&vEcho(show))return;
+    // Barge-in: as soon as the student starts talking, Voca stops.
+    if(show&&window.speechSynthesis&&speechSynthesis.speaking){speechSynthesis.cancel();V.saying=''}
+    if(show)$('#vHeard').textContent='“'+show+'”';
     if(!fin)return;const m=fin.match(WAKE);
     if(m){const cmd=fin.slice(m.index+m[0].length).trim();if(cmd)vHandle(cmd);else{V.awaitUntil=Date.now()+7000;$('#vState').textContent='Yes? I’m listening…';playMidis([84],{hold:0.15})}}
     else if(Date.now()<V.awaitUntil){V.awaitUntil=0;$('#vState').textContent='Listening for “Hey Voca”';vHandle(fin)}};
