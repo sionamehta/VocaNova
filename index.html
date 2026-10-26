@@ -432,6 +432,23 @@ main{padding-block:32px 56px}
 .lesson,.lesson:hover{background:transparent}
 .lesson{border-color:var(--line)}
 .lesson .ln{font-family:var(--f-mono);font-weight:500;font-size:14px}
+/* ===== Today strip: daily goal, streak, next step ===== */
+.today{display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px;padding:0 0 18px;margin-bottom:24px;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.today b{color:var(--ink);font-family:var(--f-mono);font-weight:500}
+.today .goal{display:flex;align-items:center;gap:10px}
+.today .pips{display:flex;gap:3px}
+.today .pips i{width:18px;height:6px;background:var(--sunk);border:1px solid var(--line);transition:background .3s}
+.today .pips i.on{background:var(--accent);border-color:var(--accent)}
+.today .next{margin-left:auto}
+.today.done .goal b{color:var(--good)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);opacity:0;background:var(--ink);color:var(--bg);padding:10px 16px;font-size:14px;z-index:20;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:900px){.toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}.today{gap:6px 18px}.today .next{margin-left:0;width:100%}}
+@media (min-width:901px){.coach{height:calc(100vh - 230px)}}
+/* views ease in when you switch tabs */
+.view:not([hidden]){animation:viewin .18s ease-out}
+@keyframes viewin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.view:not([hidden]){animation:none}.toast,.today .pips i{transition:none}}
 </style>
 
 <header class="top"><div class="top-in wrap">
@@ -473,6 +490,7 @@ main{padding-block:32px 56px}
 </dialog>
 
 <main class="wrap">
+<div class="today" id="today" aria-live="polite"></div>
 
 <!-- ============ COACH ============ -->
 <section class="view" id="v-coach">
@@ -1509,7 +1527,8 @@ async function srGrade(fileOrBlob,take={}){
     const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--accent)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
     $('#srResult').innerHTML=head+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode),srListenParts())+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
     S.lastSR={mode:SR.mode,level:LEVELS[SR.lvl].name,key:keyName(SR.key.f,SR.key.mode),time:SR.time,voice:SR.voice,final_score:final,key_question:asked?{found_do:!!q.doOK,starting_syllable:!!q.sylOK}:'not asked',...gradeSummary(r,'sight-reading exercise')};
-    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist()}
+    logPractice();
+    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist();renderToday()}
     srListenWire();
     $('#srAgain').onclick=()=>{Player.stop();SR.grade=null;SR.take=null;SR.keyQ={};SR.attempted=false;srRender();$('#srResult').innerHTML='';if(SRMODE==='test')srNew()};$('#srNext').onclick=srNew;
     if($('#srAsk'))$('#srAsk').onclick=()=>{go('coach');setCV('chat');coachSend('I just sight-read a '+LEVELS[SR.lvl].name+' exercise in '+keyName(SR.key.f,SR.key.mode)+' and scored '+r.overall+'/100. Look at my result and give me 3 specific tips and one drill to improve my sight-reading.')};
@@ -1553,7 +1572,7 @@ function srPlayAll(){if(!SR)return;Player.play({events:srEvents(),bpm:SR.bpm,onT
 function srPlayMeasure(mi){if(!SR)return;const m=SR.measures[mi];const ev=srEvents().filter(e=>e.mi===mi).map(e=>({...e,start:e.start-m.start}));Player.play({events:ev,bpm:SR.bpm*0.85})}
 function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').innerHTML=h.length?h.slice(0,12).map(x=>'<span>L'+(x.lvl+1)+' · '+x.s+'</span>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
   const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl).slice(0,5);
-  $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.'}
+  $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.';if(typeof renderToday==='function'&&$('#today'))try{renderToday()}catch(e){}}
 $('#srLevel').innerHTML=LEVELS.map((l,i)=>'<option value="'+i+'">'+l.name+'</option>').join('');
 $('#srLevel').value=store.get('srLevel',0);
 $('#srKey').innerHTML='<option value="auto">Random for level</option>'+[0,1,-1,2,-2,3,-3,4,-4,5,-5,6,-6].map(f=>'<option value="'+f+':major">'+keyName(f,'major')+'</option>').join('')+[0,1,-1,2,-2,3,-3,4,-4].map(f=>'<option value="'+f+':minor">'+keyName(f,'minor')+'</option>').join('');
@@ -1796,6 +1815,23 @@ $('#atClose').onclick=()=>{const d=$('#atest');if(d.close)d.close();else d.remov
 $('#atest').addEventListener('close',atClose);
 
 /* ---------------- navigation ---------------- */
+/* ---------------- today: daily goal + streak ---------------- */
+const GOAL=3;
+const dayKey=(t=Date.now())=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+function streak(days){let n=0,t=Date.now();if(!days[dayKey(t)])t-=864e5;while(days[dayKey(t)]){n++;t-=864e5}return n}
+function toast(msg){let el=$('#toast');if(!el){el=document.createElement('div');el.id='toast';el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}
+  el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),3200)}
+function logPractice(){const days=store.get('days',{});const k=dayKey();days[k]=(days[k]||0)+1;store.set('days',days);renderToday();
+  if(days[k]===GOAL)toast('Daily goal done. '+streak(days)+'-day streak. See you tomorrow!');else if(days[k]<GOAL)toast((GOAL-days[k])+' more to reach today’s goal.')}
+function renderToday(){const days=store.get('days',{});const n=days[dayKey()]||0,st=streak(days);
+  const tests=store.get('srHist',[]).filter(x=>x.test);const best=tests.length?Math.max(...tests.map(x=>x.s)):null;
+  const lvl=store.get('srLevel',0);
+  $('#today').classList.toggle('done',n>=GOAL);
+  $('#today').innerHTML='<span class="goal">Today <span class="pips">'+Array.from({length:GOAL},(_,i)=>'<i class="'+(i<n?'on':'')+'"></i>').join('')+'</span><b>'+Math.min(n,GOAL)+'/'+GOAL+'</b> exercises</span>'
+    +'<span><b>'+st+'</b> day streak</span>'
+    +(best!=null?'<span>Best test <b>'+best+'</b></span>':'')
+    +'<button class="btn primary next" type="button" id="todayGo">'+(n>=GOAL?'Keep going':n?'Next exercise':'Start today’s exercise')+' · '+esc(LEVELS[lvl].name)+'</button>';
+  $('#todayGo').onclick=()=>{go('sight');$('#stPractice').click();srNew();$('#srGo').scrollIntoView({behavior:'smooth',block:'center'})}}
 function go(v){document.body.dataset.view=v;$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);$$('.nav button').forEach(b=>{if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if((v==='piano'||v==='voca')&&!KB.inited){KB.inited=true;initPiano()}
   if(v==='sight'&&SR)requestAnimationFrame(()=>srRender(!!SR.grade));if(v==='coach')requestAnimationFrame(renderCoachStaff);
@@ -1810,11 +1846,12 @@ addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+** to attach your sh
 - “Play the tenor part at half speed”
 You can also attach a recording or video of yourself singing, and I'll grade your pitch, rhythm and dynamics against the music.
 I've loaded an example piece, **Evening Hymn**, so you can try it right now.`));
-syncBpm();srHist();keyQuiz();
+syncBpm();srHist();keyQuiz();renderToday();
 const h0=(location.hash||'').slice(1);go(['coach','sight','piano','voca'].includes(h0)?h0:'coach');
 SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srHints').checked=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
 srNew();
 renderCoachStaff();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{renderCoachStaff();if(SR)srRender(!!SR.grade)});
+requestAnimationFrame(()=>scrollTo(0,0));
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(!$('#v-coach').hidden)renderCoachStaff();if(!$('#v-sight').hidden&&SR)srRender(!!SR.grade)},200)});
 </script>
