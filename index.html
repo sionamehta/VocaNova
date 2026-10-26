@@ -463,6 +463,12 @@ main{padding-block:32px 56px}
 .desk-empty{border-top:1px solid var(--line);padding:28px 0;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .desk-empty h3{font-size:22px}
 .desk-empty p{margin:0;max-width:46ch}
+/* keys pressed by playback */
+.wk,.bk{transition:background .08s,transform .08s}
+.wk.play{background:var(--accent);transform:translateY(2px)}
+.bk.play{background:var(--accent);transform:translateY(2px)}
+.wk.play .kl,.wk.play .kl .s{color:var(--accent-ink)}
+@media (prefers-reduced-motion:reduce){.wk.play,.bk.play{transform:none}}
 </style>
 
 <header class="top"><div class="top-in wrap">
@@ -822,12 +828,14 @@ const Player={master:null,raf:0,playing:false,onEnd:null,
     if(audio&&audio.buf){const src=ctx.createBufferSource(),g=ctx.createGain();src.buffer=audio.buf;g.gain.value=audio.vol??1;src.connect(g).connect(m);src.start(t0);this.src=src;end=Math.max(end,audio.buf.duration/spb)}
     for(const e of events){if(e.midi==null)continue;synthNote(ctx,nd,e.midi,t0+e.start*spb,Math.max(0.09,e.dur*spb*0.96),e.vel||0.3);end=Math.max(end,e.start+e.dur)}
     for(const c of clicks){click(ctx,m,t0+c.b*spb,c.acc);end=Math.max(end,c.b+0.4)}end=Math.max(end,until);
-    this.playing=true;this.onEnd=onEnd||null;
-    const lat=(ctx.outputLatency||0)+(ctx.baseLatency||0);const loop=()=>{if(!this.playing)return;const beat=(ctx.currentTime-lat-t0)/spb;try{onTick&&onTick(beat)}catch(e){}if(beat>end+0.3+lat/spb){this.stop(true);return}this.raf=requestAnimationFrame(loop)};
+    this.playing=true;this.onEnd=onEnd||null;const notes=events.filter(e=>e.midi!=null);
+    const lat=(ctx.outputLatency||0)+(ctx.baseLatency||0);const loop=()=>{if(!this.playing)return;const beat=(ctx.currentTime-lat-t0)/spb;try{onTick&&onTick(beat)}catch(e){}
+      try{keysSounding(notes.filter(e=>beat>=e.start&&beat<e.start+e.dur*0.96).map(e=>e.midi))}catch(e){}if(beat>end+0.3+lat/spb){this.stop(true);return}this.raf=requestAnimationFrame(loop)};
     this.raf=requestAnimationFrame(loop);return {t0,spb,end};
   },
   stop(natural){if(this.raf)cancelAnimationFrame(this.raf);this.raf=0;if(this.src){try{this.src.stop(AC.currentTime+0.06)}catch(e){}this.src=null}
     if(this.master&&AC){const m=this.master,t=AC.currentTime;try{m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+0.05)}catch(e){}setTimeout(()=>{try{m.disconnect()}catch(e){}},150);this.master=null}
+    try{keysSounding([])}catch(e){}
     const was=this.playing,cb=this.onEnd;this.playing=false;this.onEnd=null;if(was&&cb)cb(!!natural)}
 };
 function playMidis(list,{together=false,gap=0.75,hold=1.4,onEnd}={}){
@@ -1740,6 +1748,13 @@ function labelKeys(map,mode,keyF){const flat=keyF<0;for(const m in map){const k=
   else if(mode==='c')h=(n.step==='C'&&!n.alter)?'C'+n.oct:'';
   else if(mode==='solf'){const s=solf(n,keyF,'major',{});h='<span class="s">'+s.s+'</span>'+(n.step==='C'&&!n.alter?'C'+n.oct:'')}
   k.innerHTML=h?'<span class="kl">'+h+'</span>':''}}
+// Light up keys while playback sounds them; on narrow screens follow the melody to the right octaves.
+let keysOn=new Set();
+function keysSounding(list){const now=new Set(list);
+  if(now.size&&KB.piano&&pnNarrow.matches&&!$('#v-piano').hidden){const top=Math.max(...now);if(!KB.piano[top]){KB.pnOct=clamp(Math.floor(top/12)-2,2,4);buildPiano();keysOn=new Set()}}
+  for(const map of [KB.piano,KB.voca])if(map){for(const m of keysOn)if(!now.has(m)&&map[m])map[m].classList.remove('play');for(const m of now)if(!keysOn.has(m)&&map[m])map[m].classList.add('play')}
+  if(now.size&&[...now].some(m=>!keysOn.has(m))&&!$('#v-piano').hidden)showLast(Math.max(...now));
+  keysOn=now}
 function flashKeys(list,ms=1200){for(const map of [KB.piano,KB.voca])if(map)list.forEach(m=>{const k=map[m];if(k){k.classList.add('on');setTimeout(()=>k.classList.remove('on'),ms)}});showLast(list[list.length-1])}
 function showLast(m){if(m==null)return;const f=+$('#pnKey').value;const n=midiToNote(m,f<0);$('#pnBig').textContent=prettyAcc(n.step+accStr(n.alter))+n.oct;const s=solf(n,f,'major',{});$('#pnName').innerHTML='<span class="syl">'+s.s+'</span> in '+esc(keyName(f,'major'));$('#pnHz').textContent=freq(m).toFixed(1)+' Hz'}
 // Wide screens show C2-C6; narrow screens show two octaves, picked with the octave buttons.
