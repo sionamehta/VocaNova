@@ -790,7 +790,8 @@ const intName=s=>s<=12?INTNAME[s]:(s===14?'9th':s+' half steps');
 
 /* ---------------- audio ---------------- */
 let AC=null;
-function ac(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;AC=new C()}if(AC.state==='suspended')AC.resume();return AC}
+// iOS can leave the sound engine "interrupted" after other audio plays, so wake it from any paused state.
+function ac(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;AC=new C()}if(AC.state!=='running'&&AC.state!=='closed')AC.resume().catch(()=>{});return AC}
 function buildVoice(ctx,dest,midi,t,vel){
   const f=freq(midi), g=ctx.createGain(), lp=ctx.createBiquadFilter();
   lp.type='lowpass';lp.Q.value=0.6;lp.frequency.setValueAtTime(Math.min(7000,f*9),t);lp.frequency.setTargetAtTime(Math.min(3200,f*3.5),t+0.02,0.4);
@@ -1474,6 +1475,8 @@ function genExercise(lvlIdx,voice,keySel,measSel,tries=0){
   return {lvl:lvlIdx,voice,key:{f,mode},time,bpm,measures,clef:V.clef,total:start};
 }
 let SR=null,srRefs=[],srMic=undefined,srStudyTimer=0;
+// A mic stream can end on its own (iOS stops it when another app or the system takes the mic); ask for a new one then.
+const micLive=s=>!!s&&s.getAudioTracks().some(t=>t.readyState==='live');
 function srOpt(){return {minor:'la',so:false}}
 function srRender(colors){
   const ex=SR;const hints=$('#srHints').checked;
@@ -1542,6 +1545,7 @@ async function srGo(auto){
   if(!SR)return;
   if(SRMODE==='test'&&!auto&&keyHidden()&&(SR.keyQ.doAns==null||SR.keyQ.sylAns==null)){$('#srStatus').innerHTML='<b>Test:</b> answer “Where is do?” and “Starting syllable?” in the Reading this key box first.';$('#srKeyTip').scrollIntoView({behavior:'smooth',block:'center'});return}
   Player.stop();clearInterval(srStudyTimer);clearTimeout(srRecTimer);
+  if(srMic&&!micLive(srMic))srMic=undefined;
   if(srMic===undefined){try{srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
   const cue=srCue();const {cl,off,per}=srCountClicks($('#srMetro').checked);const startB=cue.len+off;
   let rec=null;const chunks=[];
@@ -1889,6 +1893,7 @@ $('#vVoice').value=store.get('vVoice','4');$('#vVoice').onchange=()=>store.set('
 /* ---------------- audio test ---------------- */
 const AT={stop:null};
 async function atMicStream(){
+  if(srMic&&!micLive(srMic))srMic=undefined;
   if(srMic===undefined){try{srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
   return srMic;
 }
@@ -1898,7 +1903,10 @@ function atListen(stream){
   $('#atMeterWrap').classList.remove('off');
   const loop=async now=>{raf=requestAnimationFrame(loop);an.getFloatTimeDomainData(buf);
     let e=0;for(let i=0;i<buf.length;i++)e+=buf[i]*buf[i];const db=10*Math.log10(e/buf.length+1e-12);bar.style.width=clamp((db+62)/52*100,0,100)+'%';
-    if(busy||now-last<120)return;last=now;busy=true;
+    if(busy||now-last<120)return;last=now;
+    if(ctx.state!=='running')ctx.resume().catch(()=>{});
+    if(!micLive(stream)){$('#atMicMsg').textContent='The microphone stopped. Tap Check microphone to turn it back on.';atClose();return}
+    busy=true;
     const fr=await pitchTrack(buf.slice(),ctx.sampleRate);busy=false;
     const ms=fr.filter(f=>f.midi!=null&&f.db>-50&&f.midi>33&&f.midi<88).map(f=>f.midi);
     if(ms.length)hist.push(median(ms));else hist.push(null);if(hist.length>5)hist.shift();
@@ -1920,10 +1928,14 @@ $('#atMic').onclick=async()=>{
 };
 $('#atRec').onclick=async()=>{
   const s=srMic;if(!s||!window.MediaRecorder)return;const chunks=[];let rec;
+  if(!micLive(s)){$('#atRecMsg').textContent='The microphone stopped. Tap Check microphone, then record again.';if(AT.stop){AT.stop();AT.stop=null}$('#atMic').disabled=false;return}
   try{rec=new MediaRecorder(s)}catch(e){$('#atRecMsg').textContent='Recording isn’t supported in this browser.';return}
   rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
-  rec.onstop=()=>{const a=$('#atPlay');if(a.src)URL.revokeObjectURL(a.src);a.src=URL.createObjectURL(new Blob(chunks,{type:rec.mimeType||'audio/webm'}));a.hidden=false;a.play().catch(()=>{});
-    $('#atRec').disabled=false;$('#atRecMsg').textContent='Playing it back. Tap Record again to try another take.'};
+  rec.onstop=async()=>{const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'}),a=$('#atPlay');if(a.src)URL.revokeObjectURL(a.src);a.src=URL.createObjectURL(blob);a.hidden=false;a.onended=()=>ac();a.play().catch(()=>{});
+    $('#atRec').disabled=false;$('#atRecMsg').textContent='Playing it back. Tap Record again to try another take.';
+    // Tell the singer when the take came out silent, instead of playing back nothing.
+    let peak=null;try{const buf=await ac().decodeAudioData(await blob.arrayBuffer());peak=0;for(let c=0;c<buf.numberOfChannels;c++){const d=buf.getChannelData(c);for(let i=0;i<d.length;i++)peak=Math.max(peak,Math.abs(d[i]))}}catch(e){}
+    if(peak!==null&&peak<0.002)$('#atRecMsg').textContent='That take came out silent: no sound reached the microphone. Check that the mic is allowed and not muted, then tap Record again.'};
   $('#atRec').disabled=true;$('#atPlay').hidden=true;rec.start();
   for(let k=3;k>0;k--){$('#atRecMsg').textContent='Recording… '+k;await sleep(1000)}
   rec.stop();
