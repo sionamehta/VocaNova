@@ -187,6 +187,7 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .srmeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .lvlpill{font-family:var(--f-display);font-weight:800;background:var(--nova-soft);color:var(--ink);border-radius:8px;padding:3px 10px;font-size:14px}
 .srctrl{display:flex;flex-wrap:wrap;gap:8px}
+.srhow{margin:2px 0 0;font-size:13px;color:var(--muted);line-height:1.45}.srhow b{color:var(--ink)}
 .srside{display:flex;flex-direction:column;gap:12px}
 .countover{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;background:rgba(255,255,255,.6);border-radius:12px}
 .countover span{font-family:var(--f-display);font-weight:800;font-size:clamp(64px,14vw,130px);line-height:1;color:var(--p-accent);animation:pop .1s ease-out}
@@ -592,6 +593,7 @@ main{padding-block:32px 56px}
         <button class="btn" id="srHear">Hear it (after you try)</button>
         <button class="btn ghost" id="srStop">Stop</button>
       </div>
+      <p class="srhow"><b>When you press Start:</b> you’ll hear <span class="syl">do–mi–sol–mi–do</span> (<span class="syl">la–do–mi–do–la</span> in a minor key) and then your first note. Next comes a countdown: <b>3, 2, 1, breathe</b>. Start singing right after “breathe”.</p>
       <div class="srlive" id="srLive" hidden>
         <div class="beatbox"><div class="eyebrow" id="srBeatLbl">Metronome</div><div class="beats" id="srBeats"></div></div>
         <div class="micbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><div class="meter" id="srMeterWrap"><i id="srMeter"></i></div><span id="srMicLbl">Mic</span></div>
