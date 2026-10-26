@@ -1769,7 +1769,7 @@ $('#pmStart').onclick=()=>{const r=startingNote($('#pmPart').value);if(r)$('#pmI
 $('#pmPlay').onclick=()=>{const p=$('#pmPart').value;const ms=S.score.measures;coachPlay({part:p,from:ms[0].n,to:ms[ms.length-1].n})};$('#pmStop').onclick=()=>Player.stop();
 
 /* ---------------- HEY VOCA ---------------- */
-const V={rec:null,listening:false,awaitUntil:0,last:null,saying:''};
+const V={rec:null,listening:false,awaitUntil:0,last:null,saying:'',req:0,ctl:null,acts:[]};
 /* Voca's speaking voice: pick the most natural English voice the device has. */
 const VOICE_PREFS=[/natural|neural/i,/premium|enhanced/i,/google us english/i,/\b(ava|samantha|allison|zoe|evan|nathan|serena|daniel|karen|moira|tessa|jenny|aria|guy)\b/i,/google/i];
 function voiceList(){try{return (speechSynthesis.getVoices()||[]).filter(v=>/^en(-|_|$)/i.test(v.lang))}catch(e){return []}}
@@ -1790,18 +1790,24 @@ V.turns=store.get('vocaTurns',[]);
 function vRenderLog(){const t=V.turns;let h='';for(let i=0;i+1<t.length;i+=2)h='<div><b>'+esc(t[i].content)+'</b><br>'+esc(t[i+1].content)+'</div>'+h;$('#vLog').innerHTML=h||'<span class="muted" style="font-size:13px">Nothing yet. Voca remembers your recent questions so you can ask follow-ups.</span>'}
 function vLog(q,a){if(!q||!a)return;V.turns.push({role:'user',content:String(q).slice(0,600)},{role:'assistant',content:String(a).slice(0,1500)});if(V.turns.length>40)V.turns=V.turns.slice(-40);store.set('vocaTurns',V.turns);vRenderLog()}
 function spokenNote(str,defOct){
-  let s=' '+str.toLowerCase().replace(/[.,!?]/g,' ')+' ';
+  let s=' '+str.toLowerCase().replace(/[.,!?]/g,' ').replace(/\b(\d|one|two|three|four|five|six|seven|eight)[- ]notes?\b/g,' ')+' ';
   s=s.replace(/\bmiddle (c|see|sea)\b/g,' c4 ').replace(/\b(see|sea|cee|si)\b/g,' c ').replace(/\bbee\b/g,' b ').replace(/\bdee\b/g,' d ').replace(/\b(gee|jee)\b/g,' g ').replace(/\beff\b/g,' f ');
   s=s.replace(/\b(one|two|three|four|five|six)\b/g,w=>({one:1,two:2,three:3,four:4,five:5,six:6})[w]);
   s=s.replace(/\b([a-g])\s*(sharp|#|♯)/g,'$1#').replace(/\b([a-g])\s*(flat|♭)/g,'$1b');
   const re=/\b([a-g])(#|b)?(?:\s*(\d))?(?=\s|$)/g;let m,found=[];while((m=re.exec(s)))found.push(m);
+  // A bare "a" is usually the word "a" ("play a warm-up"), not the note A.
+  found=found.filter(x=>{if(x[1]!=='a'||x[2]||x[3])return true;const next=s.slice(x.index+x[0].length).trim().split(/\s+/)[0]||'';return !next||/^(sharp|flat|major|minor|chord|scale|note|and|then|together)$/.test(next)});
   if(!found.length)return null;let pickM=found.find(x=>x[2]||x[3])||found[found.length-1];
   let oct=pickM[3]?+pickM[3]:defOct;const om=s.match(/octave\s*(\d)/);if(om)oct=+om[1];if(/\b(high|higher)\b/.test(s)&&!pickM[3])oct++;if(/\b(low|lower)\b/.test(s)&&!pickM[3])oct--;
   return parsePitch(pickM[1].toUpperCase()+(pickM[2]||'')+oct);
 }
+const STOPWORDS=/\b(stop|quiet|silence|shh+|hush|pause|enough|cancel|never ?mind)\b/i;
+// Stop everything Voca is doing: talking, playing, and any answer still on its way.
+function vStop(){try{speechSynthesis.cancel()}catch(e){}V.saying='';Player.stop();V.req++;if(V.ctl){V.ctl.abort();V.ctl=null}
+  $('#vReply').textContent='Stopped.';$('#vState').textContent=V.listening?'Listening for “Hey Voca”':'Tap to let Voca listen'}
 function runCommand(raw){
   const t=raw.toLowerCase().trim();const def=+$('#vVoice').value;if(!t)return true;
-  if(/\b(stop|quiet|silence|shh)\b/.test(t)){Player.stop();vSay('Stopped.');return true}
+  if(STOPWORDS.test(t)){vStop();return true}
   if(/\b(again|repeat|one more time)\b/.test(t)&&V.last){V.last();vSay('Again.');return true}
   if(/\b(up an octave|octave up|higher)\b/.test(t)&&V.lastNotes){const ns=V.lastNotes.map(x=>x+12);playMidis(ns,{together:V.lastTogether});V.lastNotes=ns;vSay('Up an octave.');return true}
   if(/\b(down an octave|octave down|lower)\b/.test(t)&&V.lastNotes&&!/[a-g]\s*(sharp|flat|#|b)?\s*\d/.test(t)){const ns=V.lastNotes.map(x=>x-12);playMidis(ns,{together:V.lastTogether});V.lastNotes=ns;vSay('Down an octave.');return true}
@@ -1810,10 +1816,12 @@ function runCommand(raw){
   if(/(starting note|first note|my note)/.test(t)&&S.score){let part=S.part;S.score.parts.forEach(p=>{if(t.includes(p.toLowerCase()))part=p});const f=()=>startingNote(part);const r=f();V.last=f;if(r){vSay('Here’s the key, then your note: '+r.note.replace(/\d/,'')+', '+r.syl+'.');return true}}
   const pm=t.match(/play (?:the |my )?(\w+) part/);if(pm&&S.score){let part=null;if(pm[1]==='my')part=S.part;else part=S.score.parts.find(p=>p.toLowerCase().startsWith(pm[1]));if(part){const f=()=>coachPlay({part});f();V.last=f;vSay('Playing the '+part+' part.');return true}}
   const sy=t.match(/\b(do|re|mi|fa|sol|so|la|ti)\b.*\bin\b\s+(.+)/);
-  if(sy){const k=spokenNote(sy[2],4);if(k){const minor=/minor/.test(sy[2]);const majPc=minor?(k.midi+3)%12:k.midi%12;const deg=['do','re','mi','fa','sol','la','ti'].indexOf(sy[1]==='so'?'sol':sy[1]);let midi=12*(def+1)+majPc+[0,2,4,5,7,9,11][deg];const f=()=>playMidis([midi],{hold:2});f();V.last=f;V.lastNotes=[midi];V.lastTogether=false;const n=midiToNote(midi,false);vSay(sy[1]+' in '+pretty(k).replace(/\d/,'')+(minor?' minor':'')+' is '+prettyAcc(n.step+accStr(n.alter))+'.');return true}}
-  if(/chord/.test(t)){const k=spokenNote(t.replace(/chord.*/,''),def);if(k){const minor=/minor/.test(t),dim=/diminished/.test(t),seventh=/seventh|7th/.test(t);let ns=dim?[0,3,6]:minor?[0,3,7]:[0,4,7];if(seventh)ns=ns.concat(minor?10:dim?9:/major seventh/.test(t)?11:10);const notes=ns.map(x=>k.midi+x);const f=()=>playMidis(notes,{together:true,hold:2});f();V.last=f;V.lastNotes=notes;V.lastTogether=true;vSay(pretty(k).replace(/\d/,'')+(minor?' minor':dim?' diminished':' major')+(seventh?' seventh':'')+' chord.');return true}}
-  if(/scale/.test(t)){const k=spokenNote(t.replace(/scale.*/,''),def);if(k){const minor=/minor/.test(t);const sc=(minor?[0,2,3,5,7,8,10,12]:[0,2,4,5,7,9,11,12]).map(x=>k.midi+x);const f=()=>playMidis(sc,{gap:0.42,hold:1});f();V.last=f;V.lastNotes=null;vSay(pretty(k).replace(/\d/,'')+(minor?' minor':' major')+' scale.');return true}}
-  if(/\b(play|give me|what does|sound)\b/.test(t)||/^[a-g]( sharp| flat)?( \d)?$/.test(t)){const ns=[];const parts=t.split(/\band\b|,|then/);for(const p of parts){const n=spokenNote(p,def);if(n)ns.push(n)}
+  if(sy){const k=spokenNote(sy[2],4);if(k){const minor=/minor/.test(sy[2]);const majPc=minor?(k.midi+3)%12:k.midi%12;const deg=['do','re','mi','fa','sol','la','ti'].indexOf(sy[1]==='so'?'sol':sy[1]);let midi=12*(def+1)+majPc+[0,2,4,5,7,9,11][deg];const f=()=>playMidis([midi],{hold:2});f();V.last=f;V.lastNotes=[midi];V.lastTogether=false;const n=midiToNote(midi,k.alter<0||(k.step==='F'&&!k.alter&&!minor));vSay(sy[1]+' in '+pretty(k).replace(/\d/,'')+(minor?' minor':'')+' is '+prettyAcc(n.step+accStr(n.alter))+'.');return true}}
+  if(/\b[a-g](\s*(sharp|flat|#|b))?\s*(major|minor|diminished)?\s*(major seventh|seventh|7th)?\s*chord/.test(t)){const k=spokenNote(t.replace(/chord.*/,''),def);if(k){const minor=/minor/.test(t),dim=/diminished/.test(t),seventh=/seventh|7th/.test(t);let ns=dim?[0,3,6]:minor?[0,3,7]:[0,4,7];if(seventh)ns=ns.concat(minor?10:dim?9:/major seventh/.test(t)?11:10);const notes=ns.map(x=>k.midi+x);const f=()=>playMidis(notes,{together:true,hold:2});f();V.last=f;V.lastNotes=notes;V.lastTogether=true;vSay(pretty(k).replace(/\d/,'')+(minor?' minor':dim?' diminished':' major')+(seventh?' seventh':'')+' chord.');return true}}
+  if(/\b[a-g](\s*(sharp|flat|#|b))?\s*(major|minor)?\s*scale/.test(t)){const k=spokenNote(t.replace(/scale.*/,''),def);if(k){const minor=/minor/.test(t);const sc=(minor?[0,2,3,5,7,8,10,12]:[0,2,4,5,7,9,11,12]).map(x=>k.midi+x);const f=()=>playMidis(sc,{gap:0.42,hold:1});f();V.last=f;V.lastNotes=null;vSay(pretty(k).replace(/\d/,'')+(minor?' minor':' major')+' scale.');return true}}
+  // Only a plain note request ("play C sharp and E") is handled here; anything with other words goes to the AI.
+  const extra=t.replace(/[.,!?]/g,' ').split(/\s+/).filter(w=>w&&!/^([a-g](#|b)?\d?|\d|sharp|flat|play|me|a|an|the|note|notes|please|can|you|could|give|what|does|sound|sounds|like|and|then|together|at|same|time|middle|see|sea|bee|dee|gee|eff|one|two|three|four|five|six|octave|of|for|us|hey|now|just|again)$/.test(w));
+  if(!extra.length&&(/\b(play|give me|what does|sound)\b/.test(t)||/^[a-g]( sharp| flat)?( \d)?$/.test(t))){const ns=[];const parts=t.split(/\band\b|,|then/);for(const p of parts){const n=spokenNote(p,def);if(n)ns.push(n)}
     if(ns.length){const together=/together|at the same time/.test(t);const ms=ns.map(n=>n.midi);const f=()=>playMidis(ms,{together,hold:2});f();V.last=f;V.lastNotes=ms;V.lastTogether=together;vSay(ns.map(n=>pretty(n).replace(/\d/,'')).join(', ')+'.');return true}}
   return false;
 }
@@ -1822,10 +1830,16 @@ async function vHandle(text){
   if(runCommand(text)){vLog(text,$('#vReply').textContent);return}
   if(!SAMPLE){vSay('I can play notes, chords and scales. Try “play B flat”.');vLog(text,$('#vReply').textContent);return}
   $('#vReply').textContent='Thinking…';$('#vState').textContent='Thinking…';playMidis([79],{hold:0.12});
-  const rules='You are Voca, the friendly voice assistant in the Voca Nova singing app for choir and solo singers. Your words are read aloud, so talk like a friendly person, not a textbook: plain, warm, conversational sentences with contractions, no markdown, lists, symbols or abbreviations. Keep answers to 1–3 short sentences; if the student asks you to explain more or go deeper, use up to 6 sentences and build on what you said before. The earlier messages are your conversation with this student: use them to understand follow-ups like "explain that more" or "what about minor?". If they want to hear notes, call play_notes (C4 = middle C; their default octave is '+$('#vVoice').value+').'+(S.score?' Their current music: "'+S.score.title+'", '+keyName(S.score.measures[0].key.f,S.score.measures[0].key.mode)+', parts '+S.score.parts.join(', ')+'; play_music plays a part on piano.':'');
-  const hist=V.turns.slice(-24);const tools=LIM?.tools?coachTools().filter(x=>x.name==='play_notes'||(S.score&&x.name==='play_music')):null;
-  try{const r=await SAMPLE([{role:'user',content:rules},...hist,{role:'user',content:text}],{cache:false,modelTier:'quick',...(tools?{tools}:{})});
-    const ans=r.text.trim();vSay(ans);vLog(text,ans)}catch(e){vSay(errCopy(e))}
+  const rules='You are Voca, the friendly voice assistant in the Voca Nova singing app for choir and solo singers. Your words are read aloud, so talk like a friendly person, not a textbook: plain, warm, conversational sentences with contractions, no markdown, lists, symbols or abbreviations. Keep answers to 1–3 short sentences; never apologize for or correct earlier turns unless asked. To play anything (a note, chord, scale, warm-up), you must call play_notes or play_music in this turn; never say you played something without calling the tool. Earlier answers ending in [The app did this: ...] really happened. if the student asks you to explain more or go deeper, use up to 6 sentences and build on what you said before. The earlier messages are your conversation with this student: use them to understand follow-ups like "explain that more" or "what about minor?". If they want to hear notes, call play_notes (C4 = middle C; their default octave is '+$('#vVoice').value+').'+(S.score?' Their current music: "'+S.score.title+'", '+keyName(S.score.measures[0].key.f,S.score.measures[0].key.mode)+', parts '+S.score.parts.join(', ')+'; play_music plays a part on piano.':'');
+  const hist=V.turns.slice(-24);
+  // Remember what the tools really did, so later turns know it happened.
+  const acts=[];const tools=LIM?.tools?coachTools().filter(x=>x.name==='play_notes'||(S.score&&x.name==='play_music')).map(t=>({...t,execute:async(i,c)=>{const out=await t.execute(i,c);acts.push(String(out).slice(0,160));return out}})):null;
+  const id=++V.req;try{speechSynthesis.cancel()}catch(e){}V.ctl=new AbortController();
+  try{const r=await SAMPLE([{role:'user',content:rules},...hist,{role:'user',content:text}],{cache:false,modelTier:'quick',signal:V.ctl.signal,...(tools?{tools}:{})});
+    if(id!==V.req)return;
+    const ans=r.text.trim();vSay(ans);vLog(text,ans+(acts.length?' [The app did this: '+acts.join('; ')+']':''))}
+  catch(e){if(id===V.req&&!(e&&e.code==='cancelled'))vSay(errCopy(e))}
+  finally{if(id===V.req)V.ctl=null}
 }
 // Speech recognition often mishears "Voca" (Loca, Boca, Vocal, Yoga, Coca...), so match loosely.
 const WAKE=/\b(?:hey|hi|ok(?:ay)?|a|hay|hate)\s*,?\s*(?:[vbwflmcgpy]h?o[ck]{1,2}[aeo][lrs]?|vaca|vocab|yoga|focus|local|vocal)(?:\s*nova)?\b[,.!]?/i;
@@ -1837,8 +1851,10 @@ function vListen(on){
   rec.onresult=ev=>{let fin='',interim='';for(let i=ev.resultIndex;i<ev.results.length;i++){const r=ev.results[i];if(r.isFinal)fin+=r[0].transcript;else interim+=r[0].transcript}
     const show=(fin||interim).trim();
     if(show&&vEcho(show))return;
-    // Barge-in: as soon as the student starts talking, Voca stops.
+    // Barge-in: as soon as the student starts talking, Voca stops talking.
     if(show&&window.speechSynthesis&&speechSynthesis.speaking){speechSynthesis.cancel();V.saying=''}
+    // "Stop", "quiet", "wait"... stop everything right away, with or without "Hey Voca".
+    if(show&&STOPWORDS.test(show)&&show.split(/\s+/).length<=6){if(!V.stopShown){V.stopShown=true;vStop();$('#vHeard').textContent='“'+show+'”'}if(fin)V.stopShown=false;return}
     if(show)$('#vHeard').textContent='“'+show+'”';
     if(!fin)return;const m=fin.match(WAKE);
     if(m){const cmd=fin.slice(m.index+m[0].length).trim();if(cmd)vHandle(cmd);else{V.awaitUntil=Date.now()+7000;$('#vState').textContent='Yes? I’m listening…';playMidis([84],{hold:0.15})}}
