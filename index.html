@@ -605,7 +605,7 @@ main{padding-block:32px 56px}
         <label class="chk"><input type="checkbox" id="srMetro" checked> Metronome while singing</label>
         <label class="field" style="flex-direction:row;align-items:center;gap:6px">Sound<select id="srMetroType"><option value="click">Classic click</option><option value="wood">Wood block</option><option value="beep">Soft beep</option><option value="tick">Quiet tick</option><option value="cowbell">Cowbell</option><option value="drum">Drum (kick + hi-hat)</option><option value="clap">Clap</option></select></label>
         <label class="field" style="flex-direction:row;align-items:center;gap:6px">Volume<input id="srMetroVol" type="range" min="0" max="100" value="80" style="width:90px"></label>
-        <label class="chk"><input type="checkbox" id="srHints"> Show solfège hints</label>
+        <label class="chk"><input type="checkbox" id="srHints"> Show solfège hints</label><span class="muted" id="srHintNote" style="font-size:12px" hidden>In a test, using hints saves your score as “with hints”, and it won’t count toward moving up a level.</span>
         <label class="chk"><input type="checkbox" id="srStudy" autocomplete="off"> 30-second study timer</label>
       </div>
       <div class="status" id="srStatus"></div>
@@ -1485,7 +1485,7 @@ function keyExplain(f,mode){
   return h;
 }
 let SRMODE='practice';
-function keyHidden(){return !!SR&&SR.lvl>=2&&(SRMODE==='test'||!$('#srHints').checked)}
+function keyHidden(){return !!SR&&SR.lvl>=2&&!$('#srHints').checked}
 function keyQHTML(){const q=SR.keyQ,f=SR.key.f,first=srEvents()[0],right=first.nt.syl;
   if(!SR.doOpts){const set=new Set([f]);for(const d of [1,-1,2,-2,3,-3,4,-4]){if(set.size>=4)break;const g=f+d;if(g>=-7&&g<=7)set.add(g)}SR.doOpts=[...set].sort(()=>Math.random()-0.5)}
   const reveal=!!SR.grade||(SR.mode==='practice'&&q.doAns!=null&&q.sylAns!=null);
@@ -1499,7 +1499,7 @@ document.addEventListener('click',e=>{const d=e.target.closest('[data-kqdo],[dat
   if(d.dataset.kqdo!=null){q.doAns=+d.dataset.kqdo;q.doOK=q.doAns===SR.key.f}else{q.sylAns=d.dataset.kqsyl;q.sylOK=q.sylAns===first.nt.syl}
   $('#srKeyTip').innerHTML=keyQHTML();if(SR.mode==='test'&&q.doAns!=null&&q.sylAns!=null&&/answer “Where is do/.test($('#srStatus').textContent))$('#srStatus').textContent='Ready. Press Start when you are.'});
 function setMode(m){SRMODE=m;store.set('srMode',m);$('#srModePractice').setAttribute('aria-pressed',m==='practice');$('#srModeTest').setAttribute('aria-pressed',m==='test');
-  $('#srHints').disabled=m==='test';if(m==='test')$('#srHints').checked=false;srNew()}
+  if(m==='test')$('#srHints').checked=false;$('#srHintNote').hidden=m!=='test';srNew()}
 function srNew(){Player.stop();clearInterval(srStudyTimer);const lvl=+$('#srLevel').value;SR=genExercise(lvl,$('#srVoice').value,$('#srKey').value,$('#srMeas').value);SR.attempted=false;SR.keyQ={};SR.mode=SRMODE;$('#srResult').innerHTML='';$('#srStatus').textContent=LEVELS[lvl].desc;srRender();
   if(SRMODE==='test'&&keyHidden())$('#srStatus').textContent='Test: find the key and your starting syllable, then press Start.';
   if($('#srStudy').checked)srStudyStart()}
@@ -1564,11 +1564,11 @@ async function srGrade(fileOrBlob,take={}){
     const col={good:'#178350',close:'#b06f00',wrong:'#c3352a',missed:'#8c8c99'};r.noteResults.forEach(x=>{x.e.nt.color=col[x.status]});SR.grade=r;srRender(true);
     const first=srEvents()[0];
     const keyBlock=asked?'<div class="card" style="margin-top:10px"><div class="eyebrow">Finding the key</div><ul style="margin:6px 0 0;padding-left:1.2em;font-size:14px"><li>Where is do: '+(q.doAns==null?'<b style="color:var(--bad)">not answered</b>':q.doOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+prettyAcc(MAJ[q.doAns+7])+'</b>')+'</li><li>Starting syllable: '+(q.sylAns==null?'<b style="color:var(--bad)">not answered</b>':q.sylOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+q.sylAns+'</b>')+'</li></ul><p style="margin:6px 0 0;font-size:14px">'+keyExplain(SR.key.f,SR.key.mode)+' You start on <span class="syl">'+first.nt.syl+'</span>.'+(q.doOK&&q.sylOK?'':' Review the <b>Reading key signatures</b> lesson.')+'</p></div>':'';
-    const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--accent)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
+    const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--accent)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores'+(SR.hinted||$('#srHints').checked?' (with hints)':'')+'</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
     $('#srResult').innerHTML=head+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode),srListenParts())+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
     S.lastSR={mode:SR.mode,level:LEVELS[SR.lvl].name,key:keyName(SR.key.f,SR.key.mode),time:SR.time,voice:SR.voice,final_score:final,key_question:asked?{found_do:!!q.doOK,starting_syllable:!!q.sylOK}:'not asked',...gradeSummary(r,'sight-reading exercise')};
     logPractice();
-    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist();renderToday()}
+    if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true,...(SR.hinted||$('#srHints').checked?{hints:true}:{})});store.set('srHist',h.slice(0,30));srHist();renderToday()}
     srListenWire();
     $('#srAgain').onclick=()=>{Player.stop();SR.grade=null;SR.take=null;SR.keyQ={};SR.attempted=false;srRender();$('#srResult').innerHTML='';if(SRMODE==='test')srNew()};$('#srNext').onclick=srNew;
     if($('#srAsk'))$('#srAsk').onclick=()=>{go('coach');setCV('chat');coachSend('I just sight-read a '+LEVELS[SR.lvl].name+' exercise in '+keyName(SR.key.f,SR.key.mode)+' and scored '+r.overall+'/100. Look at my result and give me 3 specific tips and one drill to improve my sight-reading.')};
@@ -1636,8 +1636,8 @@ function whenLabel(t){if(!t)return '';const d=new Date(t),now=new Date(),day=x=>
   const diff=Math.round((day(now)-day(d))/864e5),time=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   if(Date.now()-t<60e3)return 'Just now';return (diff===0?'Today':diff===1?'Yesterday':d.toLocaleDateString([],{month:'short',day:'numeric',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}))+', '+time}
 function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').classList.toggle('list',!!h.length);
-  $('#srHist').innerHTML=h.length?'<div class="histnote">Newest at the top</div>'+h.slice(0,12).map((x,i)=>'<div class="hrow'+(i===0?' latest':'')+'"><span>Level '+(x.lvl+1)+(i===0?'<span class="tag">Latest</span>':'')+'</span><b>'+x.s+'</b><small>'+esc(whenLabel(x.t))+'</small></div>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
-  const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl).slice(0,5);
+  $('#srHist').innerHTML=h.length?'<div class="histnote">Newest at the top</div>'+h.slice(0,12).map((x,i)=>'<div class="hrow'+(i===0?' latest':'')+'"><span>Level '+(x.lvl+1)+(i===0?'<span class="tag">Latest</span>':'')+'</span><b>'+x.s+'</b><small>'+esc(whenLabel(x.t))+(x.hints?' · with hints':'')+'</small></div>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
+  const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl&&!x.hints).slice(0,5);
   $('#srLevelTip').textContent=recent.length>=3&&mean(recent.map(x=>x.s))>=85?'You’re averaging '+Math.round(mean(recent.map(x=>x.s)))+' on '+LEVELS[lvl].name+'. Try the next level!':recent.length?'Average on this level: '+Math.round(mean(recent.map(x=>x.s)))+'. Score 85+ on three tests to move up.':'Score 85+ on three tests at a level to move up.';if(typeof renderToday==='function'&&$('#today'))try{renderToday()}catch(e){}}
 $('#srLevel').innerHTML=LEVELS.map((l,i)=>'<option value="'+i+'">'+l.name+'</option>').join('');
 $('#srLevel').value=store.get('srLevel',0);
@@ -1647,7 +1647,7 @@ $('#srLevel').onchange=()=>{store.set('srLevel',+$('#srLevel').value);syncBpm();
 $('#srVoice').value=store.get('srVoice','Soprano');$('#srVoice').onchange=()=>{store.set('srVoice',$('#srVoice').value);srNew()};
 ['#srKey','#srMeas'].forEach(s=>$(s).onchange=srNew);
 $('#srBpm').oninput=()=>{$('#srBpmOut').textContent='♩ = '+$('#srBpm').value;if(SR){SR.bpm=+$('#srBpm').value;srRender(!!SR.grade)}};
-$('#srHints').onchange=()=>SR&&srRender(!!SR.grade);
+$('#srHints').onchange=()=>{if(!SR)return;if($('#srHints').checked&&!SR.grade)SR.hinted=true;srRender(!!SR.grade)};
 $('#srStudy').onchange=()=>{clearInterval(srStudyTimer);if(!SR||SR.grade||Player.playing)return;if($('#srStudy').checked)srStudyStart();else $('#srStatus').textContent='Timer off. Press Start when you’re ready.'};
 $('#srNew').onclick=srNew;
 $('#srModePractice').onclick=()=>setMode('practice');$('#srModeTest').onclick=()=>setMode('test');
@@ -1975,7 +1975,7 @@ if(!coachRestore())addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+*
 You can also attach a recording or video of yourself singing, and I'll grade your pitch, rhythm and dynamics against the music.`));
 syncBpm();srHist();keyQuiz();renderToday();
 const h0=(location.hash||'').slice(1);go(['coach','sight','piano','voca'].includes(h0)?h0:'coach');
-SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srHints').checked=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
+SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').checked=false;$('#srHintNote').hidden=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
 srNew();
 renderCoachStaff();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{renderCoachStaff();if(SR)srRender(!!SR.grade)});
