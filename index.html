@@ -449,6 +449,11 @@ main{padding-block:32px 56px}
 .view:not([hidden]){animation:viewin .18s ease-out}
 @keyframes viewin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.view:not([hidden]){animation:none}.toast,.today .pips i{transition:none}}
+/* empty music desk */
+#desk [hidden]{display:none!important}
+.desk-empty{border-top:1px solid var(--line);padding:28px 0;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.desk-empty h3{font-size:22px}
+.desk-empty p{margin:0;max-width:46ch}
 </style>
 
 <header class="top"><div class="top-in wrap">
@@ -515,8 +520,14 @@ main{padding-block:32px 56px}
     </div>
 
     <aside class="desk" id="desk">
-      <div class="card piece" id="pieceCard"></div>
-      <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="desk-empty" id="deskEmpty">
+        <div class="eyebrow">Your music</div>
+        <h3>No sheet music yet</h3>
+        <p class="muted">Add a PDF or a photo of your sheet music. Voca reads it, then you can play your part, see the solfège and get your singing graded.</p>
+        <label class="btn primary" for="fileIn">Add sheet music</label>
+      </div>
+      <div class="card piece" id="pieceCard" hidden></div>
+      <div class="card" id="musicCtl" hidden style="display:flex;flex-direction:column;gap:10px">
         <div class="row" style="align-items:flex-end;gap:10px">
           <label class="field">Part<select id="partSel"></select></label>
           <label class="field">From<input id="fromM" type="number" min="1" value="1"></label>
@@ -538,7 +549,7 @@ main{padding-block:32px 56px}
         </div>
         <div class="status" id="coachStatus"></div>
       </div>
-      <div class="paper"><div class="staffhost" id="coachStaff"></div></div>
+      <div class="paper" id="musicPaper" hidden><div class="staffhost" id="coachStaff"></div></div>
       <div id="reportCard"></div>
     </aside>
   </div>
@@ -1133,8 +1144,10 @@ function renderPiece(){
   $('#partSel').innerHTML=opts;$('#pmPart').innerHTML=opts;
   const last=sc.measures[sc.measures.length-1].n;$('#fromM').value=sc.measures[0].n;$('#toM').value=Math.min(last,sc.measures[0].n+31);
   $('#pmInfo').textContent='“'+sc.title+'” · '+keyName(m0.key.f,m0.key.mode);
-  renderChips();
+  renderChips();deskState();
 }
+function deskState(){const has=!!S.score;$('#deskEmpty').hidden=has;['#pieceCard','#musicCtl','#musicPaper'].forEach(q=>$(q).hidden=!has);
+  if(!has)$('#pmInfo').textContent='Add sheet music on the Coach tab to use these.';['#pmPart','#pmStart','#pmPlay','#pmStop'].forEach(q=>$(q).disabled=!has)}
 function solOpt(){return {minor:$('#minorSel').value,so:$('#soSel').value==='so'}}
 function renderCoachStaff(){
   if(!S.score)return;const part=S.part;const [a,b]=rangeIdx($('#fromM').value,$('#toM').value);const bb=Math.min(b,a+39);
@@ -1177,6 +1190,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-save
 /* chips */
 function renderChips(){
   const p=S.part||'Soprano';const sc=S.score;const lower=(sc?.parts||[]).find(x=>x!==p)||'Alto';
+  if(!sc){$('#chips').innerHTML=['What can you help me with?','How do I find do from a key signature?','Give me a quick choir warm-up'].map(t=>'<button class="chip" type="button">'+esc(t)+'</button>').join('');return}
   const list=S.recording?['Grade my recording as '+p,'Grade my recording, measures 1–8 only']:[];
   list.push('Solfège the '+p.toLowerCase()+' part','What should '+lower.toLowerCase()+'s watch out for?','Explain the dynamics in this piece','Play the '+p.toLowerCase()+' part at half speed','Make an audio file of all parts');
   $('#chips').innerHTML=list.map(t=>'<button class="chip" type="button">'+esc(t)+'</button>').join('');
@@ -1839,13 +1853,12 @@ function go(v){document.body.dataset.view=v;$$('.view').forEach(s=>s.hidden=s.id
 $$('.nav button').forEach(b=>b.onclick=()=>go(b.dataset.view));
 
 /* ---------------- boot ---------------- */
-S.score=buildScore(EXAMPLE);S.part='Soprano';renderPiece();refreshPianoMusic();
+renderChips();deskState();
 addMsg('bot',md(`Hi! I'm **Voca**, your choir coach. Tap **+** to attach your sheet music (PDF or photo), then ask me things like:
 - “Solfège the alto part”
 - “What dynamics should I watch for?”
 - “Play the tenor part at half speed”
-You can also attach a recording or video of yourself singing, and I'll grade your pitch, rhythm and dynamics against the music.
-I've loaded an example piece, **Evening Hymn**, so you can try it right now.`));
+You can also attach a recording or video of yourself singing, and I'll grade your pitch, rhythm and dynamics against the music.`));
 syncBpm();srHist();keyQuiz();renderToday();
 const h0=(location.hash||'').slice(1);go(['coach','sight','piano','voca'].includes(h0)?h0:'coach');
 SRMODE=store.get('srMode','practice');if(SRMODE==='test'){$('#srHints').disabled=true;$('#srHints').checked=false;$('#srModePractice').setAttribute('aria-pressed','false');$('#srModeTest').setAttribute('aria-pressed','true')}
