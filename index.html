@@ -828,7 +828,7 @@ let SAMPLE=null,DL=null,LIM=null;
 const AI_OK=()=>!!SAMPLE;
 function errCopy(e){const c=e&&e.code;return({not_granted:'Claude access wasn’t allowed for this page, so the AI coach is off. The piano, playback, solfège and sight-reading still work.',sampling_disabled:'Claude isn’t available on this account, so the AI coach is off.',rate_limited:'Too many requests right now. Wait a minute, then try again.',session_expired:'Please sign in to Claude again, then try again.',image_rejected:'That image couldn’t be read. Try a clearer photo or a PDF.',refused:'The coach couldn’t answer that. Try asking another way.',network:'Couldn’t reach the coach server. Check your internet connection and try again.',server_key:'The coach server’s Claude API key is missing or wrong. Check it in your server settings.',invalid_json:'I had trouble reading that page. A sharper scan or a straight-on photo helps.',prompt_too_large:'That was too much at once. Try fewer pages or a shorter question.',images_unavailable:'Sending images to Claude isn’t available here, so I can’t read sheet music in this view.',tools_unavailable:'The coach can’t use the app’s tools in this view.'}[c])||'Something went wrong reaching the coach. Try again.'}
 /* Outside Claude, the coach can use your own server instead (see server/README.md). */
-const COACH_URL='';
+const COACH_URL='https://vocanova-coach.sionamehta1.workers.dev/api/coach';
 function coachServer(url){
   const post=async(body,signal)=>{let r;
     try{r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal})}
