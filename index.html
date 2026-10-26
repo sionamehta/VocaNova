@@ -1769,7 +1769,7 @@ $('#pmPlay').onclick=()=>{const p=$('#pmPart').value;const ms=S.score.measures;c
 
 /* ---------------- HEY VOCA ---------------- */
 const V={rec:null,listening:false,awaitUntil:0,last:null};
-function vSay(t){$('#vReply').textContent=t;if($('#vTalk').checked&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}}
+function vSay(t){$('#vReply').textContent=t;if($('#vState').textContent==='Thinking…')$('#vState').textContent=V.listening?'Listening for “Hey Voca”':'Tap to let Voca listen';if($('#vTalk').checked&&window.speechSynthesis){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/♯/g,' sharp').replace(/♭/g,' flat'));u.rate=1.05;speechSynthesis.speak(u)}catch(e){}}}
 V.turns=store.get('vocaTurns',[]);
 function vRenderLog(){const t=V.turns;let h='';for(let i=0;i+1<t.length;i+=2)h='<div><b>'+esc(t[i].content)+'</b><br>'+esc(t[i+1].content)+'</div>'+h;$('#vLog').innerHTML=h||'<span class="muted" style="font-size:13px">Nothing yet. Voca remembers your recent questions so you can ask follow-ups.</span>'}
 function vLog(q,a){if(!q||!a)return;V.turns.push({role:'user',content:String(q).slice(0,600)},{role:'assistant',content:String(a).slice(0,1500)});if(V.turns.length>40)V.turns=V.turns.slice(-40);store.set('vocaTurns',V.turns);vRenderLog()}
