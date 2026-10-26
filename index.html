@@ -159,6 +159,18 @@ main{max-width:1280px;margin:0 auto;padding-block:16px 28px}
 .mstrip button{min-width:30px;height:26px;border:0;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums;color:#fff}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.mhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.mhead .btn{padding:5px 12px;font-size:13px}
+.listen{display:flex;flex-direction:column;gap:10px;border-color:var(--accent)}
+.listen .row{gap:14px;align-items:center}
+.listen input[type=range]{width:100px}
+.nchips{display:flex;gap:4px;flex-wrap:wrap}
+.nchips span{display:inline-flex;flex-direction:column;align-items:center;min-width:34px;padding:3px 5px;border-radius:7px;background:var(--sunk);font-size:12px;line-height:1.2;font-variant-numeric:tabular-nums;border:2px solid transparent}
+.nchips span b{font-size:12px}
+.nchips span small{font-size:10px;color:var(--muted)}
+.nchips span.good b{color:var(--good)} .nchips span.close b{color:var(--warn)} .nchips span.wrong b,.nchips span.missed b{color:var(--bad)}
+.nchips span.on{border-color:var(--accent);background:var(--accent-soft)}
+.nowline{font-size:15px;min-height:1.4em}
 
 /* SIGHT */
 .subtabs{margin-bottom:14px}
@@ -665,16 +677,19 @@ function click(ctx,dest,t,acc){const v=METRO.vol;if(v<=0)return;
     default:{const o=ctx.createOscillator(),g=ctx.createGain();o.type='square';o.frequency.value=acc?1760:1180;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime((acc?0.22:0.13)*v,t+0.002);g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);o.connect(g).connect(dest);o.start(t);o.stop(t+0.07)}
   }}
 const Player={master:null,raf:0,playing:false,onEnd:null,
-  play({events=[],clicks=[],bpm=90,onTick,onEnd,until=0}){
+  play({events=[],clicks=[],bpm=90,onTick,onEnd,until=0,audio=null,noteVol=1}){
     this.stop();const ctx=ac();const m=ctx.createGain();m.gain.value=1;m.connect(ctx.destination);this.master=m;
     const spb=60/bpm,t0=ctx.currentTime+0.12;let end=0;
-    for(const e of events){if(e.midi==null)continue;synthNote(ctx,m,e.midi,t0+e.start*spb,Math.max(0.09,e.dur*spb*0.96),e.vel||0.3);end=Math.max(end,e.start+e.dur)}
+    const nd=ctx.createGain();nd.gain.value=noteVol;nd.connect(m);
+    // audio: a recording that starts at beat 0 and plays under the notes
+    if(audio&&audio.buf){const src=ctx.createBufferSource(),g=ctx.createGain();src.buffer=audio.buf;g.gain.value=audio.vol??1;src.connect(g).connect(m);src.start(t0);this.src=src;end=Math.max(end,audio.buf.duration/spb)}
+    for(const e of events){if(e.midi==null)continue;synthNote(ctx,nd,e.midi,t0+e.start*spb,Math.max(0.09,e.dur*spb*0.96),e.vel||0.3);end=Math.max(end,e.start+e.dur)}
     for(const c of clicks){click(ctx,m,t0+c.b*spb,c.acc);end=Math.max(end,c.b+0.4)}end=Math.max(end,until);
     this.playing=true;this.onEnd=onEnd||null;
     const lat=(ctx.outputLatency||0)+(ctx.baseLatency||0);const loop=()=>{if(!this.playing)return;const beat=(ctx.currentTime-lat-t0)/spb;try{onTick&&onTick(beat)}catch(e){}if(beat>end+0.3+lat/spb){this.stop(true);return}this.raf=requestAnimationFrame(loop)};
     this.raf=requestAnimationFrame(loop);return {t0,spb,end};
   },
-  stop(natural){if(this.raf)cancelAnimationFrame(this.raf);this.raf=0;
+  stop(natural){if(this.raf)cancelAnimationFrame(this.raf);this.raf=0;if(this.src){try{this.src.stop(AC.currentTime+0.06)}catch(e){}this.src=null}
     if(this.master&&AC){const m=this.master,t=AC.currentTime;try{m.gain.cancelScheduledValues(t);m.gain.setValueAtTime(m.gain.value,t);m.gain.linearRampToValueAtTime(0,t+0.05)}catch(e){}setTimeout(()=>{try{m.disconnect()}catch(e){}},150);this.master=null}
     const was=this.playing,cb=this.onEnd;this.playing=false;this.onEnd=null;if(was&&cb)cb(!!natural)}
 };
@@ -820,7 +835,7 @@ async function decodeFile(file){
   const ab=await file.arrayBuffer();const ctx=ac();
   const buf=await new Promise((res,rej)=>{try{const p=ctx.decodeAudioData(ab,res,rej);if(p&&p.then)p.then(res,rej)}catch(e){rej(e)}});
   const n=buf.length,ch=buf.numberOfChannels,x=new Float32Array(n);for(let c=0;c<ch;c++){const d=buf.getChannelData(c);for(let i=0;i<n;i++)x[i]+=d[i]/ch}
-  return {x,sr:buf.sampleRate,dur:buf.duration};
+  return {x,sr:buf.sampleRate,dur:buf.duration,buf};
 }
 async function pitchTrack(x0,sr0,onP){
   const fct=Math.max(1,Math.round(sr0/11025)),sr=sr0/fct,N=Math.floor(x0.length/fct),x=new Float32Array(N);
@@ -865,7 +880,7 @@ function analyzeSinging(exp,rec,opt={}){
     const res={k,e,n:e.n,mi:e.mi,exp:e.midi,status:'missed',cents:null,sung:null};
     if(ratio>=0.3&&voiced.length){const diffs=voiced.map(x=>wrap12(rec[x].midi-e.midi));const dm=median(diffs);res.cents=Math.round(dm*100);res.sung=e.midi+Math.round(dm);
       const ac=Math.abs(res.cents);res.status=ac<=35?'good':ac<=75?'close':'wrong';if(res.status==='good')good++;else if(res.status==='close')close++;
-      accSum+=clamp(1-(ac-20)/80,0,1);tune.push({k,c:res.cents,t:voiced[0]});res.db=mean(voiced.map(x=>rec[x].db))}else missed++;
+      accSum+=clamp(1-(ac-20)/80,0,1);tune.push({k,c:res.cents,t:voiced[0]});res.onT=rec[voiced[0]].t;res.db=mean(voiced.map(x=>rec[x].db))}else missed++;
     acc++;const expLen=e.fb-e.fa;if(expLen>=2&&res.status!=='missed'){const err=Math.abs(js.length-expLen)/expLen;res.rhythm=clamp(1-err*0.8,0,1);rS+=res.rhythm*expLen;rW+=expLen;res.recLen=js.length;res.expLen=expLen}
     notes.push(res)});
   const pitch=acc?Math.round(accSum/acc*100):0,noteAcc=acc?Math.round(good/acc*100):0,rhythm=rW?Math.round(rS/rW*100):0;
@@ -893,12 +908,12 @@ function analyzeSinging(exp,rec,opt={}){
     meanCents:Math.round(meanC),drift,sungBpm,total:acc,good,close,missed,noteResults:notes,measures,checks};
 }
 async function gradeFile(file,exp,opt,status){
-  status('Listening to your recording…');const {x,sr,dur}=await decodeFile(file);
+  status('Listening to your recording…');const {x,sr,dur,buf}=await decodeFile(file);
   const B=180,wave=new Array(B).fill(0),per=Math.max(1,Math.floor(x.length/B));let pk=0;for(let i=0;i<B;i++){let m=0;for(let k=i*per,e=Math.min(x.length,(i+1)*per);k<e;k+=4){const v=Math.abs(x[k]);if(v>m)m=v}wave[i]=m;if(m>pk)pk=m}
   if(dur>360)status('That recording is long; I’ll grade the first 6 minutes.');
   const fr=await pitchTrack(x,sr,p=>status('Listening… '+Math.round(p*100)+'%'));const rec=frames10(fr);
   status('Comparing with the music…');await sleep(20);
-  const res=analyzeSinging(exp,rec,opt);res.recDur=dur;res.wave=wave;res.peakDb=Math.round(20*Math.log10(pk+1e-9));return res;
+  const res=analyzeSinging(exp,rec,opt);res.recDur=dur;res.buf=buf;res.wave=wave;res.peakDb=Math.round(20*Math.log10(pk+1e-9));return res;
 }
 function feedbackLists(r,ctx={}){
   const well=[],fix=[];
@@ -932,7 +947,7 @@ function reportHTML(r,title){
    '<div class="bars">'+bar('Pitch',r.pitch)+bar('Right notes',r.notes)+bar('Rhythm',r.rhythm)+bar('Stayed in key',r.inTune)+bar('Dynamics',r.dynamics)+'</div></div>'+
    '<div class="fb"><div class="well"><h4>What went well</h4><ul>'+fb.well.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div><div class="fix"><h4>What to work on</h4><ul>'+fb.fix.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div></div>'+
    (r.wave?'<div><div class="eyebrow" style="margin-bottom:4px">Your recording · '+fmtTime(r.recDur||0)+'</div><svg class="wave" viewBox="0 0 180 40" preserveAspectRatio="none"><path d="'+r.wave.map((v,i)=>{const h=Math.max(0.4,Math.min(1,v)*19);return 'M'+(i+0.5)+' '+(20-h).toFixed(1)+'V'+(20+h).toFixed(1)}).join('')+'"/></svg>'+(r.peakDb<-26?'<div class="warnline">Your recording is very quiet. Hold the phone closer or sing out more so the grade is accurate.</div>':'')+'</div>':'')+
-   '<div><div class="eyebrow" style="margin-bottom:6px">Measure by measure · tap to hear it</div><div class="mstrip">'+strip+'</div></div>'+
+   '<div><div class="mhead"><div class="eyebrow">Measure by measure · tap one to hear it</div><button class="btn" data-mplay="all">▶ Play all measures</button></div><div class="mstrip">'+strip+'</div></div>'+
    '<div class="legend"><span><i style="background:var(--good)"></i>on pitch</span><span><i style="background:var(--warn)"></i>a little off</span><span><i style="background:var(--bad)"></i>needs work</span><span>You sang at about ♩ = '+r.sungBpm+'</span></div></div>';
 }
 function gradeSummary(r,label){
@@ -1128,9 +1143,11 @@ $('#msg').addEventListener('input',autosize);
 $('#msg').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();coachSend($('#msg').value)}});
 $('#composer').onsubmit=e=>{e.preventDefault();coachSend($('#msg').value)};
 $('#stopBtn').onclick=()=>S.ctl&&S.ctl.abort();
-document.addEventListener('click',e=>{const b=e.target.closest('[data-mplay]');if(!b||!S.score)return;
-  const mi=+b.dataset.mplay;if(b.closest('#srResult')){srPlayMeasure(mi);return}
-  const part=(S.grade&&S.grade.part)||S.part;coachPlay({part,from:S.score.measures[mi].n,to:S.score.measures[mi].n,speed:80})});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-mplay]');if(!b)return;const all=b.dataset.mplay==='all';
+  if(b.closest('#srResult')){all?srPlayAll():srPlayMeasure(+b.dataset.mplay);return}if(!S.score)return;
+  const part=(S.grade&&S.grade.part)||S.part;
+  if(all){const ns=[...b.closest('.report').querySelectorAll('[data-mplay]:not([data-mplay="all"])')].map(x=>S.score.measures[+x.dataset.mplay].n);coachPlay({part,from:Math.min(...ns),to:Math.max(...ns),speed:80});return}
+  const mi=+b.dataset.mplay;coachPlay({part,from:S.score.measures[mi].n,to:S.score.measures[mi].n,speed:80})});
 
 /* attachments */
 $('#fileIn').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
@@ -1338,29 +1355,67 @@ async function srGo(auto){
       else setPhase('sing',(rec?'Recording… ':'')+'Sing!'+(rec?'':' (Live microphone isn’t available on this page. To get a score, use “Record / upload singing”.)'));
       highlightRefs(srRefs,b-startB)},
     onEnd:async nat=>{clearTimeout(srRecTimer);highlightRefs(srRefs,-1);stopMeter();srCount('');srPend(-1,false);srBeat(-1,'Metronome');setTimeout(()=>{if(!Player.playing)$('#srLive').hidden=true},1500);
-      if(rec&&rec.state==='recording'){if(!nat){try{rec.stop()}catch(e){}$('#srStatus').textContent='Stopped.';return}await sleep(450);rec.onstop=()=>srGrade(new Blob(chunks,{type:rec.mimeType||'audio/webm'}));rec.stop()}
+      if(rec&&rec.state==='recording'){if(!nat){try{rec.stop()}catch(e){}$('#srStatus').textContent='Stopped.';return}await sleep(450);const lead=off*info.spb+(AC.outputLatency||0)+(AC.baseLatency||0);rec.onstop=()=>srGrade(new Blob(chunks,{type:rec.mimeType||'audio/webm'}),{lead});rec.stop()}
       else if(!nat)$('#srStatus').textContent='Stopped.';
       else if(!rec)$('#srStatus').textContent='Done! Record yourself to get feedback, or tap “Hear it” to check.'}});
   setTimeout(()=>flashKeys([cue.first.midi],1600),cue.ev[cue.ev.length-1].start*info.spb*1000+120);
   if(rec)srRecTimer=setTimeout(()=>{try{if(Player.playing)rec.start()}catch(e){}},Math.max(0,(info.t0+cue.len*info.spb-AC.currentTime)*1000));
 }
-async function srGrade(fileOrBlob){
-  if(!SR)return;SR.attempted=true;const st=t=>$('#srStatus').textContent=t;
+async function srGrade(fileOrBlob,take={}){
+  if(!SR)return;SR.attempted=true;Player.stop();const st=t=>$('#srStatus').textContent=t;
   try{const exp=[];SR.measures.forEach((m,mi)=>m.list.forEach(n=>exp.push({midi:n.rest?null:n.midi,start:n.absStart,dur:n.beats,mi,n:m.n,nt:n})));
     const r=await gradeFile(fileOrBlob,exp,{},st);st('');
     const asked=keyHidden();const q=SR.keyQ;const keyScore=asked?((q.doOK?50:0)+(q.sylOK?50:0)):null;
     const final=asked?Math.round(r.overall*0.9+keyScore*0.1):r.overall;const letter=final>=90?'A':final>=80?'B':final>=70?'C':final>=60?'D':'F';
     const col={good:'#178350',close:'#b06f00',wrong:'#c3352a',missed:'#8c8c99'};r.noteResults.forEach(x=>{x.e.nt.color=col[x.status]});SR.grade=r;srRender(true);
+    SR.take=srTake(r,take.lead);
     const first=srEvents()[0];
     const keyBlock=asked?'<div class="card" style="margin-top:10px"><div class="eyebrow">Finding the key</div><ul style="margin:6px 0 0;padding-left:1.2em;font-size:14px"><li>Where is do: '+(q.doAns==null?'<b style="color:var(--bad)">not answered</b>':q.doOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+prettyAcc(MAJ[q.doAns+7])+'</b>')+'</li><li>Starting syllable: '+(q.sylAns==null?'<b style="color:var(--bad)">not answered</b>':q.sylOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+q.sylAns+'</b>')+'</li></ul><p style="margin:6px 0 0;font-size:14px">'+keyExplain(SR.key.f,SR.key.mode)+' You start on <span class="syl">'+first.nt.syl+'</span>.'+(q.doOK&&q.sylOK?'':' Review the <b>Reading key signatures</b> lesson.')+'</p></div>':'';
     const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--nova)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
-    $('#srResult').innerHTML=head+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode))+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
+    $('#srResult').innerHTML=head+srListenHTML()+reportHTML(r,(SR.mode==='test'?'Test':'Practice')+' · '+LEVELS[SR.lvl].name+' · '+keyName(SR.key.f,SR.key.mode))+keyBlock+(SAMPLE?'<div class="row" style="margin-top:10px"><button class="btn" id="srAsk">Ask the coach for tips</button><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>':'<div class="row" style="margin-top:10px"><button class="btn" id="srAgain">'+(SR.mode==='test'?'New test':'Try this one again')+'</button><button class="btn primary" id="srNext">Next exercise</button></div>');
     S.lastSR={mode:SR.mode,level:LEVELS[SR.lvl].name,key:keyName(SR.key.f,SR.key.mode),time:SR.time,voice:SR.voice,final_score:final,key_question:asked?{found_do:!!q.doOK,starting_syllable:!!q.sylOK}:'not asked',...gradeSummary(r,'sight-reading exercise')};
     if(SR.mode==='test'){const h=store.get('srHist',[]);h.unshift({lvl:SR.lvl,s:final,t:Date.now(),test:true});store.set('srHist',h.slice(0,30));srHist()}
-    $('#srAgain').onclick=()=>{SR.grade=null;SR.keyQ={};SR.attempted=false;srRender();$('#srResult').innerHTML='';if(SRMODE==='test')srNew()};$('#srNext').onclick=srNew;
+    srListenWire();
+    $('#srAgain').onclick=()=>{Player.stop();SR.grade=null;SR.take=null;SR.keyQ={};SR.attempted=false;srRender();$('#srResult').innerHTML='';if(SRMODE==='test')srNew()};$('#srNext').onclick=srNew;
     if($('#srAsk'))$('#srAsk').onclick=()=>{go('coach');setCV('chat');coachSend('I just sight-read a '+LEVELS[SR.lvl].name+' exercise in '+keyName(SR.key.f,SR.key.mode)+' and scored '+r.overall+'/100. Look at my result and give me 3 specific tips and one drill to improve my sight-reading.')};
   }catch(e){st((e&&e.message)||'Couldn’t read that recording. Try an .m4a, .mp3 or .wav file.')}
 }
+/* Listen back: the recording with the correct notes under it.
+   lead = seconds into the recording where beat 0 of the exercise falls. A live take knows it from the count-in;
+   an uploaded file is lined up on the first note the singer hit. */
+function srTake(r,lead){
+  const spb=60/SR.bpm,ns=r.noteResults.filter(x=>x.status!=='missed'&&x.onT!=null);
+  if(lead==null){const f=ns[0];lead=f?Math.max(0,f.onT-f.e.start*spb):0}
+  const notes=r.noteResults.map(x=>{let off=null;if(x.status!=='missed'&&x.onT!=null)off=(x.onT-lead)/spb-x.e.start;
+    const late=off!=null&&Math.abs(off)>=Math.max(0.35,0.22/spb)?(off<0?'early':'late'):'';
+    return {x,start:x.e.start,end:x.e.start+x.e.dur,late}});
+  return {buf:r.buf,lead,notes};
+}
+function srNoteChip(t,i){const x=t.x,n=pretty(x.e.nt);let mark,word;
+  if(x.status==='missed'){mark='–';word='missed'}else if(x.status==='good'){mark='✓';word='on pitch'}
+  else{mark=x.cents<0?'↓':'↑';word=(x.cents<0?'flat ':'sharp ')+Math.abs(x.cents)+'¢'}
+  return '<span class="'+x.status+'" data-ni="'+i+'" title="'+esc(n+': '+word+(t.late?', '+t.late:''))+'"><b>'+mark+'</b>'+esc(n)+(t.late?'<small>'+t.late+'</small>':'')+'</span>'}
+function srListenHTML(){const t=SR.take;if(!t||!t.buf)return '';
+  const flat=t.notes.filter(n=>n.x.status!=='good'&&n.x.status!=='missed'&&n.x.cents<0).length,sharp=t.notes.filter(n=>n.x.status!=='good'&&n.x.status!=='missed'&&n.x.cents>0).length,off=t.notes.filter(n=>n.late).length;
+  return '<div class="card listen" style="margin-bottom:10px"><div class="eyebrow">Listen back · you + the correct notes</div>'+
+   '<div class="row"><button class="btn primary" id="srLbPlay">▶ Play my singing with the notes</button><button class="btn ghost" id="srLbStop">Stop</button></div>'+
+   '<div class="row"><label class="field" style="flex-direction:row;align-items:center;gap:6px">My voice<input type="range" id="srLbVoice" min="0" max="150" value="100"></label>'+
+   '<label class="field" style="flex-direction:row;align-items:center;gap:6px">Correct notes<input type="range" id="srLbNotes" min="0" max="150" value="70"></label>'+
+   '<label class="chk"><input type="checkbox" id="srLbClick"> Beat clicks</label></div>'+
+   '<div class="nowline" id="srLbNow">Press play. The notes on the staff light up as you go.</div>'+
+   '<div class="nchips" id="srLbChips">'+t.notes.map(srNoteChip).join('')+'</div>'+
+   '<div class="legend"><span><b style="color:var(--good)">✓</b> on pitch</span><span><b style="color:var(--warn)">↓</b> flat</span><span><b style="color:var(--warn)">↑</b> sharp</span><span><small>early / late</small> off the beat</span><span>'+flat+' flat · '+sharp+' sharp · '+off+' off the beat</span></div></div>'}
+function srListenWire(){if(!$('#srLbPlay'))return;$('#srLbPlay').onclick=srListen;$('#srLbStop').onclick=()=>Player.stop()}
+function srListen(){const t=SR&&SR.take;if(!t||!t.buf)return;
+  const spb=60/SR.bpm,sh=t.lead/spb;const ev=srEvents().map(e=>({...e,start:e.start+sh,vel:0.3}));
+  const cc=srCountClicks(true),clicks=$('#srLbClick').checked?cc.cl.slice(cc.per).map(c=>({b:c.b-cc.off+sh,acc:c.acc})):[];
+  const chips=[...$$('#srLbChips span')],now=$('#srLbNow');let cur=-1;
+  const show=i=>{if(i===cur)return;if(chips[cur])chips[cur].classList.remove('on');cur=i;if(i<0){now.textContent='';return}const c=chips[i];c.classList.add('on');now.textContent='Now: '+c.title};
+  Player.play({events:ev,clicks,bpm:SR.bpm,audio:{buf:t.buf,vol:(+$('#srLbVoice').value)/100},noteVol:(+$('#srLbNotes').value)/100,
+    onTick:b=>{const x=b-sh;highlightRefs(srRefs,x);show(t.notes.findIndex(n=>x>=n.start&&x<n.end))},
+    onEnd:()=>{highlightRefs(srRefs,-1);show(-1);now.textContent='Done. Press play to hear it again.'}});
+}
+function srPlayAll(){if(!SR)return;Player.play({events:srEvents(),bpm:SR.bpm,onTick:b=>highlightRefs(srRefs,b),onEnd:()=>highlightRefs(srRefs,-1)})}
 function srPlayMeasure(mi){if(!SR)return;const m=SR.measures[mi];const ev=srEvents().filter(e=>e.mi===mi).map(e=>({...e,start:e.start-m.start}));Player.play({events:ev,bpm:SR.bpm*0.85})}
 function srHist(){const h=store.get('srHist',[]).filter(x=>x.test);$('#srHist').innerHTML=h.length?h.slice(0,12).map(x=>'<span>L'+(x.lvl+1)+' · '+x.s+'</span>').join(''):'<span class="muted" style="background:none;padding:0">No test scores yet. Practice runs aren’t saved.</span>';
   const lvl=+$('#srLevel').value;const recent=h.filter(x=>x.lvl===lvl).slice(0,5);
