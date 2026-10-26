@@ -790,6 +790,9 @@ const intName=s=>s<=12?INTNAME[s]:(s===14?'9th':s+' half steps');
 
 /* ---------------- audio ---------------- */
 let AC=null;
+// In the iPhone app, keep iOS in one play-and-record mode the whole time. Switching between
+// playing and recording makes the audio device restart, which can cut the microphone out.
+if(/VocaNovaApp/.test(navigator.userAgent)&&navigator.audioSession){try{navigator.audioSession.type='play-and-record'}catch(e){}}
 // iOS can leave the sound engine "interrupted" after other audio plays, so wake it from any paused state.
 function ac(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;AC=new C()}if(AC.state!=='running'&&AC.state!=='closed')AC.resume().catch(()=>{});return AC}
 function buildVoice(ctx,dest,midi,t,vel){
