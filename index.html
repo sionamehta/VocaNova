@@ -539,8 +539,8 @@ main{padding-block:32px 56px}
       <div class="card" id="musicCtl" hidden style="display:flex;flex-direction:column;gap:10px">
         <div class="row" style="align-items:flex-end;gap:10px">
           <label class="field">Part<select id="partSel"></select></label>
-          <label class="field">From<input id="fromM" type="number" min="1" value="1"></label>
-          <label class="field">To<input id="toM" type="number" min="1" value="8"></label>
+          <label class="field">Start at measure<input id="fromM" type="number" min="1" value="1"></label>
+          <label class="field">End at<input id="toM" type="number" min="1" value="8"></label>
           <label class="field" style="min-width:140px">Speed <span id="spdOut" style="text-transform:none">100%</span><input id="spd" type="range" min="40" max="130" step="5" value="100"></label>
         </div>
         <div class="row">
@@ -551,7 +551,7 @@ main{padding-block:32px 56px}
           <button class="btn ghost" id="bSave">Save audio</button>
         </div>
         <div class="row" style="gap:14px">
-          <label class="chk"><input type="checkbox" id="sylChk" checked> Show solfège</label>
+          <div class="seg" id="textSeg" role="group" aria-label="Under the notes"><button type="button" data-tm="solfege" aria-pressed="true">Solfège</button><button type="button" data-tm="words" aria-pressed="false">Words</button><button type="button" data-tm="off" aria-pressed="false">Off</button></div><input type="checkbox" id="sylChk" checked hidden>
           <label class="field" style="flex-direction:row;align-items:center;gap:6px">Minor<select id="minorSel"><option value="la">la-based</option><option value="do">do-based</option></select></label>
           <label class="field" style="flex-direction:row;align-items:center;gap:6px">5th<select id="soSel"><option value="sol">sol</option><option value="so">so</option></select></label>
           <button class="btn ghost" id="bCopy">Copy solfège</button>
@@ -908,9 +908,9 @@ function buildScore(raw){
     if(r.mode)mode=r.mode==='minor'?'minor':'major';if(r.time&&/\d+\/\d+/.test(r.time))time=r.time;
     const notes={};let len=0;const nominal=timeBeats(time);
     for(const p of parts){const k=findPartKey(r.notes,p);const arr=(k&&Array.isArray(r.notes[k]))?r.notes[k]:[];let off=0;notes[p]=[];
-      for(const it of arr){const a=Array.isArray(it)?it:[it.p??it.pitch,it.b??it.beats,it.tie];const beats=Math.round((+a[1])*1000)/1000;if(!(beats>0)||beats>16)continue;
+      for(const it of arr){const a=Array.isArray(it)?it:[it.p??it.pitch,it.b??it.beats,it.tie,it.l??it.lyric];const lyr=typeof a[3]==='string'?a[3].trim():'';const beats=Math.round((+a[1])*1000)/1000;if(!(beats>0)||beats>16)continue;
         const pp=parsePitch(a[0]);if(pp===undefined)continue;
-        notes[p].push(pp?{...pp,rest:false,beats,tie:!!a[2],off,p:pname(pp)}:{rest:true,beats,tie:false,off,p:'rest'});off+=beats}
+        notes[p].push(pp?{...pp,rest:false,beats,tie:!!a[2],off,p:pname(pp),...(lyr?{lyr}:{})}:{rest:true,beats,tie:false,off,p:'rest'});off+=beats}
       if(arr.length&&Math.abs(off-nominal)>0.05&&ms.length>0)warn++;
       len=Math.max(len,off)}
     if(len<0.01)len=nominal;
@@ -953,9 +953,9 @@ function durOf(b){const T=[[4,'w',0],[3,'h',1],[2,'h',0],[1.5,'q',1],[1,'q',0],[
 function drawStaff(host,measures,opt={}){
   host.innerHTML='';const refs=[];
   const VF=window.Vex&&Vex.Flow;
-  if(!VF){host.innerHTML='<div class="fallback">'+measures.map(m=>'<b>m'+m.n+'</b> '+m.list.map(n=>n.rest?'rest':esc(pretty(n))+(n.syl&&opt.syl?' ('+esc(n.syl)+')':'')).join(', ')).join('<br>')+'</div>';return refs}
+  if(!VF){host.innerHTML='<div class="fallback">'+measures.map(m=>'<b>m'+m.n+'</b> '+m.list.map(n=>n.rest?'rest':esc(pretty(n))+((opt.words?n.lyr:n.syl)&&opt.syl?' ('+esc(opt.words?n.lyr:n.syl)+')':'')).join(', ')).join('<br>')+'</div>';return refs}
   const W=Math.max(300,host.clientWidth||600)-4;const clef=opt.clef||'treble',shift=clef==='treble8vb'?1:0,vfClef=clef==='bass'?'bass':'treble';
-  const per=opt.syl?36:28;
+  const per=opt.words?44:opt.syl?36:28;
   const items=measures.map(m=>({m,w:Math.max(96,40+m.list.length*per)}));
   const rows=[];let cur=[],used=0,prevKey=null,prevTime=null;
   for(const it of items){const first=cur.length===0;const keyCh=prevKey!==it.m.key.f,timeCh=prevTime!==it.m.time;
@@ -979,7 +979,8 @@ function drawStaff(host,measures,opt={}){
           const k=nt.step+oct;const curA=(k in acc)?acc[k]:keyAlter(m.key.f,nt.step);
           if(nt.alter!==curA){sn.addModifier(new VF.Accidental({1:'#',2:'##',[-1]:'b',[-2]:'bb',0:'n'}[nt.alter]||'n'),0);acc[k]=nt.alter}}
         if(dot){try{VF.Dot.buildAndAttach([sn],{all:true})}catch(e){try{sn.addModifier(new VF.Dot(),0)}catch(e2){}}}
-        if(opt.syl&&nt.syl&&!nt.rest){const an=new VF.Annotation(nt.syl);an.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM);try{an.setFont('Kalam',15,'bold')}catch(e){}if(nt.chrom)an.setStyle&&an.setStyle({fillStyle:'#c3352a',strokeStyle:'#c3352a'});sn.addModifier(an,0)}
+        const txt=opt.words?nt.lyr:nt.syl;
+        if(opt.syl&&txt&&!nt.rest){const an=new VF.Annotation(txt);an.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM);try{an.setFont(opt.words?'IBM Plex Sans':'Kalam',opt.words?13:15,opt.words?'normal':'bold')}catch(e){}if(nt.chrom&&!opt.words)an.setStyle&&an.setStyle({fillStyle:'#c3352a',strokeStyle:'#c3352a'});sn.addModifier(an,0)}
         if(nt.color)sn.setStyle({fillStyle:nt.color,strokeStyle:nt.color});
         vn.push(sn);const ref={sn,nt,row:ri,st};refs.push(ref);rowNotes.push(ref)});
       if(vn.length){const voice=new VF.Voice({num_beats:4,beat_value:4});voice.setMode(VF.Voice.Mode.SOFT);voice.addTickables(vn);
@@ -1164,16 +1165,18 @@ function renderCoachStaff(){
   if(!S.score)return;const part=S.part;const [a,b]=rangeIdx($('#fromM').value,$('#toM').value);const bb=Math.min(b,a+39);
   partSolfege(part,a,bb,solOpt());const ms=S.score.measures;const base=ms[a].start;
   const list=[];for(let i=a;i<=bb;i++){const m=ms[i];list.push({n:m.n,key:m.key,time:m.time,list:(m.notes[part]||[]).map(nt=>{nt.absStart=m.start-base+nt.off;return nt})})}
-  const sylOn=$('#sylChk').checked;
-  const refs=drawStaff($('#coachStaff'),list,{clef:guessClef(part),syl:sylOn});refs.forEach(r=>{r.start=r.nt.absStart;r.end=r.nt.absStart+r.nt.beats});S.coachRefs=refs;
-  $('#coachStatus').textContent=part+' · measures '+ms[a].n+'–'+ms[bb].n+(b>bb?' (showing 40 at a time)':'')+(sylOn?' · red syllables are chromatic':'');
+  const sylOn=TEXTMODE!=='off',words=TEXTMODE==='words';
+  const refs=drawStaff($('#coachStaff'),list,{clef:guessClef(part),syl:sylOn,words});refs.forEach(r=>{r.start=r.nt.absStart;r.end=r.nt.absStart+r.nt.beats});S.coachRefs=refs;
+  const noWords=words&&!list.some(m=>m.list.some(n=>n.lyr));
+  $('#coachStatus').textContent=part+' · measures '+ms[a].n+'–'+ms[bb].n+(b>bb?' (showing 40 at a time)':'')+(TEXTMODE==='solfege'?' · red syllables are chromatic':'')+
+    (noWords?' · No words found for this part here. If your music has words, upload it again and I’ll read them.':'');
 }
 function coachPlay({part,all,from,to,speed}={}){
   if(!S.score)return 'No music loaded';part=resolvePart(part||S.part);const [a,b]=rangeIdx(from??$('#fromM').value,to??$('#toM').value);
   const bpm=(S.score.tempo||84)*(speed||+$('#spd').value)/100;let ev=[];
   if(all){for(const p of S.score.parts)ev=ev.concat(partEvents(p,a,b,{gain:p===part?1.15:0.6}))}else ev=partEvents(part,a,b);
-  const base=0;if(S.part!==part){S.part=part;$('#partSel').value=part;renderCoachStaff()}
   const ms=S.score.measures;
+  if(S.part!==part||+$('#fromM').value!==ms[a].n||+$('#toM').value!==ms[b].n){S.part=part;$('#partSel').value=part;$('#fromM').value=ms[a].n;$('#toM').value=ms[b].n;renderCoachStaff()}
   Player.play({events:ev,bpm,onTick:beat=>{highlightRefs(S.coachRefs,beat);let mi=a;for(let i=a;i<=b;i++)if(ms[i].start-ms[a].start<=beat)mi=i;$('#coachStatus').textContent='Playing '+(all?'all parts':part)+' · measure '+ms[mi].n},onEnd:()=>{highlightRefs(S.coachRefs,-1);$('#coachStatus').textContent=''}});
   return 'Playing '+(all?'all parts ('+part+' louder)':part)+', measures '+ms[a].n+'–'+ms[b].n+' at ♩ = '+Math.round(bpm);
 }
@@ -1182,7 +1185,11 @@ function startingNote(part){part=resolvePart(part);const ev=partEvents(part,0,S.
   const seq=sc.map(s=>root+s);Player.play({events:[...seq.map((x,i)=>({midi:x,start:i*0.5,dur:0.48,vel:0.24})),...seq.slice(0,3).map(x=>({midi:x,start:2.2,dur:1.2,vel:0.16})),{midi:ev.midi,start:3.8,dur:2.2,vel:0.36}],bpm:60});
   setTimeout(()=>flashKeys([ev.midi],2200),3800);const s=solf(ev.nt,m.key.f,m.key.mode,solOpt());return {note:pretty(ev.nt),syl:s.s,key:keyName(m.key.f,m.key.mode)}}
 $('#partSel').onchange=e=>{S.part=e.target.value;$('#pmPart').value=S.part;renderCoachStaff();coachSave()};
-['#fromM','#toM','#minorSel','#soSel','#sylChk'].forEach(s=>$(s).addEventListener('change',renderCoachStaff));
+['#fromM','#toM','#minorSel','#soSel'].forEach(s=>$(s).addEventListener('change',renderCoachStaff));
+let TEXTMODE=['solfege','words','off'].includes(store.get('textMode'))?store.get('textMode'):'solfege';
+function setTextMode(m){TEXTMODE=m;store.set('textMode',m);$('#sylChk').checked=m!=='off';$$('#textSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tm===m));renderCoachStaff()}
+$('#textSeg').onclick=e=>{const b=e.target.closest('[data-tm]');if(b)setTextMode(b.dataset.tm)};
+$$('#textSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tm===TEXTMODE));
 $('#spd').oninput=e=>$('#spdOut').textContent=e.target.value+'%';
 $('#bPart').onclick=()=>coachPlay({});$('#bAll').onclick=()=>coachPlay({all:true});$('#bStopC').onclick=()=>Player.stop();
 $('#bStartNote').onclick=()=>{const r=startingNote(S.part);if(r)$('#coachStatus').textContent='Key chord, then your first note: '+r.note+' ('+r.syl+')'};
@@ -1217,7 +1224,8 @@ function coachState(){
     const kc=[];sc.measures.forEach((m,i)=>{if(i&&(m.key.f!==sc.measures[i-1].key.f||m.time!==sc.measures[i-1].time))kc.push('m'+m.n+': '+keyName(m.key.f,m.key.mode)+' '+m.time)});if(kc.length)s+='Key/time changes: '+kc.join('; ')+'\n';
     if(sc.warn)s+='Warning: '+sc.warn+' measures may be misread.\n';
     s+='Markings (dynamics, hairpins, tempo, articulation, breaths):\n'+marksText()+'\n';
-    s+='Part selected in the Music panel: '+S.part+'\n'}else s+='No sheet music loaded.\n';
+    s+='Part selected in the Music panel: '+S.part+' · measures shown '+$('#fromM').value+'–'+$('#toM').value+'\n';
+    s+='Under the notes: '+({solfege:'solfège',words:'words (lyrics)',off:'nothing'})[TEXTMODE]+' · lyrics '+(sc.measures.some(m=>Object.values(m.notes).some(l=>l.some(n=>n.lyr)))?'were read':'were not found')+'\n'}else s+='No sheet music loaded.\n';
   s+='Recording attached: '+(S.recording?'"'+S.recording.name+'" ('+fmtTime(S.recording.dur||0)+(S.recording.kind==='video'?', a video; only its audio is analyzed':'')+')':'none')+'\n';
   if(S.lastGrade)s+='Most recent grade: '+JSON.stringify(S.lastGrade).slice(0,2500)+'\n';
   if(S.lastSR)s+='Most recent sight-reading exercise result: '+JSON.stringify(S.lastSR).slice(0,1800)+'\n';
@@ -1234,6 +1242,8 @@ HOW TO WORK
 - Dynamics and markings: use the markings list above. Explain what each one means and how to sing it (breath support, building gradually, keeping the pitch up when singing softly, matching the section).
 - "What should I watch out for": call find_tricky_spots for that part, then coach on the most important 4–6 things.
 - Playing: play_music plays a part (or all parts); play_notes plays single notes or a chord; make_audio_file makes an audio file the student can listen to and save. Use make_audio_file when they want audio to keep or send.
+- Where to start: when the student wants to play, practice, sing along or be graded and hasn't said where to start, first ask which measure they want to start on (pick up from), and offer the beginning as an option. Then pass that as from_measure. Don't ask again if they already said, or said "from the top".
+- Words or solfège under the notes: call set_text_mode. If lyrics were not found, say so kindly and suggest uploading the music again.
 - The app has no singing voice yet, so it cannot sing lyrics. If asked, say singing with lyrics is planned for the full Voca Nova app and offer the piano instead.
 - Grading: grade_recording compares the attached recording with a part and measures pitch, right notes, rhythm, staying in key and loudness changes for dynamics. It cannot judge tone, vowels or diction. If no recording is attached, tell them to tap + and attach an audio or video recording. If you don't know which part or measures they sang, ask. After grading: give the overall score, 2–3 things done well, 2–3 fixes with measure numbers, and one short practice drill.
 - The sheet music was read from images by AI and may contain mistakes. If the student says a note is wrong, use fix_notes.
@@ -1244,11 +1254,11 @@ function coachTools(){
   return [
    {name:'show_solfege',description:'Writes movable-do solfège under the notes of one part in the Music panel and returns the syllables by measure (* marks chromatic syllables).',inputSchema:{type:'object',properties:{part:P,from_measure:F,to_measure:T,minor_style:{type:'string',enum:['la','do']}},required:['part']},
     execute:wrapT(i=>{const part=resolvePart(i.part);if(i.minor_style)$('#minorSel').value=i.minor_style==='do'?'do':'la';S.part=part;$('#partSel').value=part;
-      const [a,b]=rangeIdx(i.from_measure,i.to_measure);$('#fromM').value=S.score.measures[a].n;$('#toM').value=S.score.measures[b].n;$('#sylChk').checked=true;renderCoachStaff();musicDot();
+      const [a,b]=rangeIdx(i.from_measure,i.to_measure);$('#fromM').value=S.score.measures[a].n;$('#toM').value=S.score.measures[b].n;setTextMode('solfege');musicDot();
       const m=S.score.measures[a];return 'Shown in the Music panel. Key '+keyName(m.key.f,m.key.mode)+', do = '+(MAJ[(m.key.f+7)]&&doName(m.key))+'.\n'+partSolfege(part,a,b,solOpt()).join('\n').slice(0,9000)},i=>'Writing solfège for '+(i.part||'the part')+'…')},
    {name:'get_notes',description:'Returns the notes (pitch and length in quarter-note beats), key, time signature and markings of one part for up to 24 measures.',inputSchema:{type:'object',properties:{part:P,from_measure:F,to_measure:T},required:['part']},
     execute:wrapT(i=>{const part=resolvePart(i.part);let [a,b]=rangeIdx(i.from_measure,i.to_measure);b=Math.min(b,a+23);const ms=S.score.measures;const out=[];
-      for(let q=a;q<=b;q++){const m=ms[q];out.push('m'+m.n+' ['+keyName(m.key.f,m.key.mode)+', '+m.time+'] '+((m.notes[part]||[]).map(n=>(n.rest?'rest':n.p)+'('+n.beats+')'+(n.tie?'~':'')).join(' ')||'(empty)')+(m.marks.length?' | marks: '+m.marks.map(k=>k.type+' '+k.text+(k.part!=='all'?' ('+k.part+')':'')).join('; '):''))}
+      for(let q=a;q<=b;q++){const m=ms[q];out.push('m'+m.n+' ['+keyName(m.key.f,m.key.mode)+', '+m.time+'] '+((m.notes[part]||[]).map(n=>(n.rest?'rest':n.p)+'('+n.beats+')'+(n.tie?'~':'')+(n.lyr?' "'+n.lyr+'"':'')).join(' ')||'(empty)')+(m.marks.length?' | marks: '+m.marks.map(k=>k.type+' '+k.text+(k.part!=='all'?' ('+k.part+')':'')).join('; '):''))}
       return out.join('\n')},i=>'Reading the '+(i.part||'')+' notes…')},
    {name:'find_tricky_spots',description:'Analyzes one part and returns likely trouble spots: big leaps, accidentals, entrances after rests, key/time changes, dynamics and tempo changes, highest and lowest notes.',inputSchema:{type:'object',properties:{part:P},required:['part']},
     execute:wrapT(i=>trickySpots(resolvePart(i.part)).join('\n'),i=>'Looking for tricky spots in the '+(i.part||'')+' part…')},
@@ -1265,9 +1275,11 @@ function coachTools(){
       const r=await gradeFile(S.recording.file,exp,{marks},t=>toolLine(t));
       const label=part+', measures '+ms[a].n+'–'+ms[b].n;S.grade={r,part,a,b};S.lastGrade=gradeSummary(r,label);
       S.part=part;$('#partSel').value=part;renderCoachStaff();colorCoachStaff(r);$('#reportCard').innerHTML=reportHTML(r,'Recording grade · '+label);musicDot();return S.lastGrade},i=>'Listening to your recording…')},
-   {name:'fix_notes',description:'Replaces one part’s notes in one measure after the student corrects a misread note. notes is a list of [pitch, beats] pairs like [["F#4",1],["r",1]].',inputSchema:{type:'object',properties:{part:P,measure:{type:'integer'},notes:{type:'array',items:{type:'array'}}},required:['part','measure','notes']},
+   {name:'set_text_mode',description:'Chooses what is written under the notes in the Music panel: solfège syllables, the words (lyrics), or nothing.',inputSchema:{type:'object',properties:{mode:{type:'string',enum:['solfege','words','off']}},required:['mode']},
+    execute:wrapT(i=>{const m=['solfege','words','off'].includes(i.mode)?i.mode:'solfege';setTextMode(m);musicDot();return 'Now showing '+({solfege:'solfège',words:'words',off:'nothing'})[m]+' under the notes.'},i=>'Switching to '+(i.mode==='words'?'words':i.mode==='off'?'no text':'solfège')+'…')},
+   {name:'fix_notes',description:'Replaces one part’s notes in one measure after the student corrects a misread note. notes is a list of [pitch, beats, tied 0/1, optional lyric] like [["F#4",1,0,"Glo-"],["r",1]].',inputSchema:{type:'object',properties:{part:P,measure:{type:'integer'},notes:{type:'array',items:{type:'array'}}},required:['part','measure','notes']},
     execute:wrapT(i=>{const part=resolvePart(i.part);const m=S.score.measures.find(x=>x.n===+i.measure);if(!m)throw new Error('No measure '+i.measure);let off=0;const list=[];
-      for(const it of i.notes||[]){const pp=parsePitch(it[0]);const b=+it[1];if(pp===undefined||!(b>0))throw new Error('Bad note '+JSON.stringify(it));list.push(pp?{...pp,rest:false,beats:b,tie:!!it[2],off,p:pname(pp)}:{rest:true,beats:b,tie:false,off,p:'rest'});off+=b}
+      for(const it of i.notes||[]){const pp=parsePitch(it[0]);const b=+it[1];if(pp===undefined||!(b>0))throw new Error('Bad note '+JSON.stringify(it));list.push(pp?{...pp,rest:false,beats:b,tie:!!it[2],off,p:pname(pp),...(typeof it[3]==='string'&&it[3]?{lyr:it[3]}:{})}:{rest:true,beats:b,tie:false,off,p:'rest'});off+=b}
       m.notes[part]=list;renderCoachStaff();return 'Fixed measure '+m.n+' for '+part+': '+list.map(n=>n.p+'('+n.beats+')').join(' ')},i=>'Fixing measure '+(i.measure||'')+'…')}
   ];
 }
@@ -1362,14 +1374,15 @@ ${k===0?'This is the first page: also read the title, composer, starting key sig
 Reply with ONLY this JSON:
 {"title":string,"composer":string,"parts":[part names top to bottom, e.g. "Soprano","Alto","Tenor","Bass"],"key_fifths":int (sharps positive, flats negative),"mode":"major"|"minor","time":"4/4","tempo_bpm":number|null,
  "measures":[{"n":measure number,"key_fifths":int only if the key signature changes here,"time":"3/4" only if it changes here,
-   "notes":{"Soprano":[["G4",1],["A4",0.5],["r",1],["B4",2,1]],...},
+   "notes":{"Soprano":[["G4",1,0,"Glo-"],["A4",0.5,0,"ri-"],["r",1],["B4",2,1,"a"]],...},
    "marks":[{"part":"all" or a part name,"type":"dynamic"|"crescendo"|"decrescendo"|"tempo"|"articulation"|"breath"|"other","text":"mf","beat":1,"to_measure":n for hairpins}]}]}
 
 Rules:
 - Pitch = letter + accidental + octave, spelled as actually sung (C4 = middle C). Apply the key signature and accidentals carried through the measure: in D major, an F is "F#4".
 - Treble clef with a small 8 below (tenor) sounds an octave lower: write the sounding octave.
 - "r" = rest. Beats are quarter-note units: whole 4, dotted half 3, half 2, dotted quarter 1.5, quarter 1, eighth 0.5, sixteenth 0.25, triplet eighth 0.333.
-- A third item 1 means the note is tied to the next note.
+- A third item 1 means the note is tied to the next note (otherwise 0).
+- A fourth item is the lyric syllable sung on that note (first verse only), with a hyphen when the word continues ("Glo-","ri-","a"). Leave it out for rests, tied continuations and melisma notes that start no new syllable. If a part has no words, leave it out everywhere.
 - Two parts on one staff (e.g. soprano + alto): stems up = upper part, stems down = lower part. Divisi chords: give the top note.
 - Each part's beats in a measure should add up to the time signature (except a pickup measure). If a part is silent for a measure, give a whole-measure rest.
 - Number measures continuing from the previous page, using printed measure numbers when visible.
