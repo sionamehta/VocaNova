@@ -1091,7 +1091,7 @@ function feedbackLists(r,ctx={}){
   const well=[],fix=[];
   if(r.pitch>=85)well.push('Strong pitch: most notes were right in the center.');else if(r.pitch>=70)well.push('Pitch was mostly close.');
   if(r.notes>=80)well.push(r.good+' of '+r.total+' notes were right on.');
-  if(r.rhythm>=80)well.push('Steady rhythm with notes held for the right length.');
+  if(r.rhythm>=85)well.push('Steady rhythm: your notes started on the beat.');
   if(Math.abs(r.drift)<20&&r.total>4)well.push('You stayed in the key from start to finish.');
   if(r.missed===0&&r.total>3)well.push('You kept going and didn’t skip any notes.');
   if(r.dynamics!=null&&r.dynamics>=70)well.push('Your loudness changes matched the dynamics.');
@@ -1102,7 +1102,8 @@ function feedbackLists(r,ctx={}){
   const worst=[...r.measures].filter(m=>m.issues.length).sort((a,b)=>a.pitch-b.pitch).slice(0,3);
   worst.forEach(m=>fix.push('Measure '+m.n+': '+m.issues.slice(0,3).join(', ')+'.'));
   if(r.missed>0)fix.push(r.missed+' note'+(r.missed>1?'s were':' was')+' missing or too quiet to hear.');
-  if(r.rhythm<70)fix.push('Watch note lengths: some notes were cut short or held too long. Try it again with the metronome.');
+  if(r.rhythmFix)r.rhythmFix.forEach(x=>fix.push(x));
+  if(r.rhythm<70&&!(r.rhythmFix&&r.rhythmFix.length))fix.push('Watch note lengths: some notes were cut short or held too long. Try it again with the metronome.');
   (r.checks||[]).filter(c=>!c.pass).slice(0,2).forEach(c=>fix.push('Measure '+c.n+' ('+c.mark+'): it should get '+c.wanted+', but the change was only '+c.change_db+' dB.'));
   if(!well.length)well.push('You finished the whole thing. That’s how sight-reading improves.');
   if(!fix.length)fix.push('Nothing major. Try the next level or a faster tempo.');
@@ -1542,10 +1543,10 @@ async function srGrade(fileOrBlob,take={}){
   if(!SR)return;SR.attempted=true;Player.stop();const st=t=>$('#srStatus').textContent=t;
   try{const exp=[];SR.measures.forEach((m,mi)=>m.list.forEach(n=>exp.push({midi:n.rest?null:n.midi,start:n.absStart,dur:n.beats,mi,n:m.n,nt:n})));
     const r=await gradeFile(fileOrBlob,exp,{},st);st('');
+    SR.take=srTake(r,take.lead);srRhythm(r,SR.take);
     const asked=keyHidden();const q=SR.keyQ;const keyScore=asked?((q.doOK?50:0)+(q.sylOK?50:0)):null;
     const final=asked?Math.round(r.overall*0.9+keyScore*0.1):r.overall;const letter=final>=90?'A':final>=80?'B':final>=70?'C':final>=60?'D':'F';
     const col={good:'#178350',close:'#b06f00',wrong:'#c3352a',missed:'#8c8c99'};r.noteResults.forEach(x=>{x.e.nt.color=col[x.status]});SR.grade=r;srRender(true);
-    SR.take=srTake(r,take.lead);
     const first=srEvents()[0];
     const keyBlock=asked?'<div class="card" style="margin-top:10px"><div class="eyebrow">Finding the key</div><ul style="margin:6px 0 0;padding-left:1.2em;font-size:14px"><li>Where is do: '+(q.doAns==null?'<b style="color:var(--bad)">not answered</b>':q.doOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+prettyAcc(MAJ[q.doAns+7])+'</b>')+'</li><li>Starting syllable: '+(q.sylAns==null?'<b style="color:var(--bad)">not answered</b>':q.sylOK?'<b style="color:var(--good)">right</b>':'<b style="color:var(--bad)">you said '+q.sylAns+'</b>')+'</li></ul><p style="margin:6px 0 0;font-size:14px">'+keyExplain(SR.key.f,SR.key.mode)+' You start on <span class="syl">'+first.nt.syl+'</span>.'+(q.doOK&&q.sylOK?'':' Review the <b>Reading key signatures</b> lesson.')+'</p></div>':'';
     const head=SR.mode==='test'?'<div class="card" style="display:flex;gap:16px;align-items:center;margin-bottom:10px;border-color:var(--nova)"><div class="countdown" style="font-size:44px;color:var(--accent)">'+letter+'</div><div><div class="eyebrow">Test grade · saved to your scores</div><b style="font-size:20px">'+final+' / 100</b><div class="muted" style="font-size:13px">Singing '+r.overall+(asked?' · Key and starting note '+keyScore:'')+'</div></div></div>':'<div class="muted" style="font-size:13px;margin-bottom:6px">Practice result: not saved to your scores. Switch to <b>Test</b> mode to get a saved grade.</div>';
@@ -1564,10 +1565,31 @@ async function srGrade(fileOrBlob,take={}){
 function srTake(r,lead){
   const spb=60/SR.bpm,ns=r.noteResults.filter(x=>x.status!=='missed'&&x.onT!=null);
   if(lead==null){const f=ns[0];lead=f?Math.max(0,f.onT-f.e.start*spb):0}
-  const notes=r.noteResults.map(x=>{let off=null;if(x.status!=='missed'&&x.onT!=null)off=(x.onT-lead)/spb-x.e.start;
-    const late=off!=null&&Math.abs(off)>=Math.max(0.35,0.22/spb)?(off<0?'early':'late'):'';
-    return {x,start:x.e.start,end:x.e.start+x.e.dur,late}});
-  return {buf:r.buf,lead,notes};
+  // A note's start is only reliable when the pitch changes (or after a rest); a repeated pitch has no clear boundary.
+  const rel=x=>{const i=r.noteResults.indexOf(x),p=r.noteResults[i-1];return !p||p.exp!==x.exp||p.e.start+p.e.dur<x.e.start-1e-6};
+  const offOf=x=>x.status!=='missed'&&x.onT!=null?(x.onT-lead)/spb-x.e.start:null;
+  // measure each note from where the singer came in (first note); a late or early entrance is scored on its own
+  const offs=ns.filter(rel).map(offOf),shift=offs.length?offs[0]:0;
+  const notes=r.noteResults.map(x=>{const o=offOf(x),err=o==null?null:o-shift,ok=err!=null&&rel(x);
+    const late=ok&&Math.abs(err)>=Math.max(0.35,0.22/spb)?(err<0?'early':'late'):'';
+    return {x,start:x.e.start,end:x.e.start+x.e.dur,late,err:ok?err:null}});
+  return {buf:r.buf,lead,notes,entrance:shift};
+}
+/* Rhythm for sight-reading: when each note started against the metronome, not just how long notes were
+   relative to each other (that hid rushing, dragging and late entrances). */
+function srRhythm(r,t){const spb=60/SR.bpm,pts=t.notes.filter(n=>n.err!=null);if(pts.length<2)return;
+  const entPen=clamp((Math.abs(t.entrance)-0.35)*30,0,30);
+  r.rhythm=Math.round(Math.max(0,mean(pts.map(n=>clamp(1-(Math.abs(n.err)-0.2)/0.6,0,1)))*100-entPen));
+  const xs=pts.map(n=>n.start),ys=pts.map(n=>n.x.onT),mx=mean(xs),my=mean(ys);let sxy=0,sxx=0;xs.forEach((x,i)=>{sxy+=(x-mx)*(ys[i]-my);sxx+=(x-mx)**2});
+  const fix=[];if(sxx>0&&pts.length>=4){const bpm=Math.round(60/(sxy/sxx));if(bpm>15&&bpm<400){r.sungBpm=bpm;const ratio=bpm/SR.bpm;
+    if(ratio>1.08)fix.push('You rushed: you sang at about ♩ = '+bpm+', but the music is ♩ = '+SR.bpm+'. Lock in with the metronome clicks.');
+    else if(ratio<0.92)fix.push('You dragged: you sang at about ♩ = '+bpm+', but the music is ♩ = '+SR.bpm+'. Keep up with the metronome clicks.')}}
+  if(Math.abs(t.entrance)>=0.5)fix.push('You came in about '+(Math.round(Math.abs(t.entrance)*2)/2)+' beat'+(Math.abs(t.entrance)>1.25?'s':'')+' '+(t.entrance>0?'late':'early')+' after the count-in. Start singing right after “breathe”.');
+  const off=t.notes.filter(n=>n.late);
+  if(off.length)fix.push(off.length+' note'+(off.length>1?'s':'')+' started off the beat: '+off.slice(0,4).map(n=>'m'+n.x.n+' '+pretty(n.x.e.nt)+' '+n.late).join(', ')+(off.length>4?'…':'')+'.');
+  off.forEach(n=>{const m=r.measures.find(q=>q.mi===n.x.mi);if(m)m.issues.push(pretty(n.x.e.nt)+' '+n.late)});
+  r.rhythmFix=fix;
+  let wsum=1,tot=r.pitch*0.35+r.notes*0.25+r.rhythm*0.25+r.inTune*0.15;if(r.dynamics!=null){tot+=r.dynamics*0.1;wsum+=0.1}r.overall=Math.round(tot/wsum);
 }
 function srNoteChip(t,i){const x=t.x,n=pretty(x.e.nt);let mark,word;
   if(x.status==='missed'){mark='–';word='missed'}else if(x.status==='good'){mark='✓';word='on pitch'}
