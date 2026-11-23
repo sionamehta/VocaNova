@@ -42,6 +42,16 @@ function validTools(tools) {
 // Maps a Claude API error status to the error names the app shows messages for.
 const API_ERRORS = { 401: ["server_key", 500], 403: ["server_key", 500], 413: ["prompt_too_large", 413], 429: ["rate_limited", 429] };
 
+// Reads the Claude API's error body: {"error": {"type", "message"}}.
+async function readError(response) {
+  try {
+    const d = await response.json();
+    return { type: String(d?.error?.type || ""), message: String(d?.error?.message || "") };
+  } catch {
+    return { type: "", message: "" };
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -62,15 +72,13 @@ export default {
     const tools = validTools(body.tools);
     if (!Array.isArray(body.messages) || !body.messages.length || !tools) return json({ error: "bad_request" }, 400, headers);
 
-    let response;
-    try {
-      response = await fetch("https://api.anthropic.com/v1/messages", {
+    const call = (extras) =>
+      fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "x-api-key": env.ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          // If a safety classifier declines, retry on Anthropic's recommended fallback model.
-          "anthropic-beta": "server-side-fallback-2026-07-01",
+          ...(extras ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -78,16 +86,30 @@ export default {
           max_tokens: 16000,
           messages: body.messages,
           ...(tools.length ? { tools } : {}),
-          output_config: { effort: EFFORT[body.tier] || EFFORT.default },
-          fallbacks: "default",
+          // If a safety classifier declines, retry on Anthropic's recommended fallback model.
+          ...(extras ? { output_config: { effort: EFFORT[body.tier] || EFFORT.default }, fallbacks: "default" } : {}),
         }),
       });
+
+    let response;
+    try {
+      response = await call(true);
+      // If the API rejects one of the newer settings (effort, fallbacks), try once more without them.
+      if (response.status === 400) {
+        const err = await readError(response.clone());
+        if (/effort|output_config|fallback|beta/i.test(err.message)) response = await call(false);
+      }
     } catch {
-      return json({ error: "upstream" }, 502, headers);
+      return json({ error: "upstream", detail: "The coach server couldn't connect to the Claude API." }, 502, headers);
     }
     if (!response.ok) {
-      const [error, status] = API_ERRORS[response.status] || [response.status === 400 ? "bad_request" : "upstream", response.status === 400 ? 400 : 502];
-      return json({ error }, status, headers);
+      const err = await readError(response);
+      let [error, status] = API_ERRORS[response.status] || [response.status === 400 ? "bad_request" : "upstream", response.status === 400 ? 400 : 502];
+      if (/credit balance/i.test(err.message)) error = "no_credit";
+      else if (response.status === 529 || err.type === "overloaded_error") error = "overloaded";
+      else if (response.status === 404 && /model/i.test(err.message)) error = "bad_model";
+      // Pass Claude's own explanation back so the app can show it.
+      return json({ error, detail: err.message.slice(0, 300), api_status: response.status }, status, headers);
     }
     const data = await response.json();
     return json({ content: data.content, stop_reason: data.stop_reason }, 200, headers);
