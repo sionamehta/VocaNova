@@ -795,6 +795,15 @@ let AC=null;
 if(/VocaNovaApp/.test(navigator.userAgent)&&navigator.audioSession){try{navigator.audioSession.type='play-and-record'}catch(e){}}
 // iOS can leave the sound engine "interrupted" after other audio plays, so wake it from any paused state.
 function ac(){if(!AC){const C=window.AudioContext||window.webkitAudioContext;AC=new C()}if(AC.state!=='running'&&AC.state!=='closed')AC.resume().catch(()=>{});return AC}
+
+// Phones only start sound after a tap, so wake the sound engine on the very first touch and play a
+// tiny silent sound (this is what iPhones need). In Safari on iPhone, 'playback' also lets sound
+// through when the ring/silent switch is on silent.
+if(!/VocaNovaApp/.test(navigator.userAgent)&&navigator.audioSession){try{navigator.audioSession.type='playback'}catch(e){}}
+function unlockAudio(){try{const ctx=ac();const b=ctx.createBuffer(1,1,22050);const src=ctx.createBufferSource();src.buffer=b;src.connect(ctx.destination);src.start(0)}catch(e){}
+  if(AC&&AC.state==='running'){['pointerdown','touchend','click','keydown'].forEach(t=>document.removeEventListener(t,unlockAudio,true))}}
+['pointerdown','touchend','click','keydown'].forEach(t=>document.addEventListener(t,unlockAudio,true));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&AC&&AC.state!=='running'&&AC.state!=='closed')AC.resume().catch(()=>{})});
 function buildVoice(ctx,dest,midi,t,vel){
   const f=freq(midi), g=ctx.createGain(), lp=ctx.createBiquadFilter();
   lp.type='lowpass';lp.Q.value=0.6;lp.frequency.setValueAtTime(Math.min(7000,f*9),t);lp.frequency.setTargetAtTime(Math.min(3200,f*3.5),t+0.02,0.4);
@@ -1545,11 +1554,11 @@ function srMeterStart(){const wrap=$('#srMeterWrap'),bar=$('#srMeter'),lbl=$('#s
   return ()=>{cancelAnimationFrame(raf);try{src.disconnect()}catch(e){}bar.style.width='0';lbl.textContent='Mic'}}
 let srRecTimer=0;
 async function srGo(auto){
-  if(!SR)return;
+  if(!SR)return;ac();
   if(SRMODE==='test'&&!auto&&keyHidden()&&(SR.keyQ.doAns==null||SR.keyQ.sylAns==null)){$('#srStatus').innerHTML='<b>Test:</b> answer “Where is do?” and “Starting syllable?” in the Reading this key box first.';$('#srKeyTip').scrollIntoView({behavior:'smooth',block:'center'});return}
   Player.stop();clearInterval(srStudyTimer);clearTimeout(srRecTimer);
   if(srMic&&!micLive(srMic))srMic=undefined;
-  if(srMic===undefined){try{srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
+  if(srMic===undefined){try{(()=>{try{if(navigator.audioSession&&!/VocaNovaApp/.test(navigator.userAgent))navigator.audioSession.type='play-and-record'}catch(e){}})();srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
   const cue=srCue();const {cl,off,per}=srCountClicks($('#srMetro').checked);const startB=cue.len+off;
   let rec=null;const chunks=[];
   if(srMic&&window.MediaRecorder){try{rec=new MediaRecorder(srMic);rec.ondataavailable=e=>e.data.size&&chunks.push(e.data)}catch(e){rec=null}}
@@ -1869,7 +1878,7 @@ function vListen(on){
   const Rec=window.SpeechRecognition||window.webkitSpeechRecognition;const notice=$('#vNotice');
   if(on&&!Rec){notice.hidden=false;notice.innerHTML='This browser can’t do speech recognition, so Voca can’t listen here. You can still type commands below.';return}
   if(!on){V.listening=false;try{V.rec&&V.rec.stop()}catch(e){}$('#orb').setAttribute('aria-pressed','false');$('#vState').textContent='Tap to let Voca listen';return}
-  const rec=new Rec();V.rec=rec;rec.continuous=true;rec.interimResults=true;rec.lang='en-US';
+  (()=>{try{if(navigator.audioSession&&!/VocaNovaApp/.test(navigator.userAgent))navigator.audioSession.type='play-and-record'}catch(e){}})();const rec=new Rec();V.rec=rec;rec.continuous=true;rec.interimResults=true;rec.lang='en-US';
   rec.onresult=ev=>{let fin='',interim='';for(let i=ev.resultIndex;i<ev.results.length;i++){const r=ev.results[i];if(r.isFinal)fin+=r[0].transcript;else interim+=r[0].transcript}
     const show=(fin||interim).trim();
     if(show&&vEcho(show))return;
@@ -1897,7 +1906,7 @@ $('#vVoice').value=store.get('vVoice','4');$('#vVoice').onchange=()=>store.set('
 const AT={stop:null};
 async function atMicStream(){
   if(srMic&&!micLive(srMic))srMic=undefined;
-  if(srMic===undefined){try{srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
+  if(srMic===undefined){try{(()=>{try{if(navigator.audioSession&&!/VocaNovaApp/.test(navigator.userAgent))navigator.audioSession.type='play-and-record'}catch(e){}})();srMic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}catch(e){srMic=null}}
   return srMic;
 }
 function atListen(stream){
